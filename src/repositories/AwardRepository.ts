@@ -23,6 +23,11 @@ export class AwardRepository {
         return this.db.award.findFirst({ where: { id, cineforumId }, select: { id: true, _count: { select: { seasons: true } } } });
     }
 
+    /** Rassegne avviate (non più bozze) che usano il premio. */
+    countStartedSeasons(id: number) {
+        return this.db.seasonAward.count({ where: { awardId: id, season: { status: { not: "DRAFT" } } } });
+    }
+
     update(id: number, data: AwardUpdateDTO) {
         return this.db.award.update({ where: { id }, data, select });
     }

@@ -23,6 +23,11 @@ export class CategoryRepository {
         return this.db.category.findFirst({ where: { id, cineforumId }, select: { id: true, _count: { select: { seasons: true } } } });
     }
 
+    /** Rassegne avviate (non più bozze) che usano la categoria. */
+    countStartedSeasons(id: number) {
+        return this.db.season.count({ where: { categories: { some: { id } }, status: { not: "DRAFT" } } });
+    }
+
     update(id: number, data: CategoryUpdateDTO) {
         return this.db.category.update({ where: { id }, data, select });
     }

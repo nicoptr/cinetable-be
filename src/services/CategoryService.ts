@@ -21,6 +21,8 @@ export class CategoryService {
     async update(userId: number, cineforumId: number, id: number, data: CategoryUpdateDTO) {
         await requirePresident(userId, cineforumId);
         await this.find(id, cineforumId);
+        // gli archivi passati non cambiano
+        if (await this.repo.countStartedSeasons(id)) throw new httpErrors.Conflict("Usata in una rassegna avviata: crea una nuova categoria");
         return this.repo.update(id, data);
     }
 

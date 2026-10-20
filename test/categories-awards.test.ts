@@ -92,3 +92,34 @@ test("DELETE di categoria o premio usati in una rassegna → 409", async () => {
     assert.equal(a.statusCode, 409);
     assert.equal(a.json().message, "Premio usato in una rassegna");
 });
+
+test("PATCH di categoria o premio usati in una rassegna avviata → 409; in bozza no", async () => {
+    const presi = await makeUser("presi6@x.it");
+    const cf = await makeCineforum(presi);
+    const db = getPrismaClient();
+    const cat = await db.category.create({ data: { cineforumId: cf, name: "Horror" } });
+    const award = await db.award.create({ data: { cineforumId: cf, name: "Regia", question: "Quanto ti è piaciuta?" } });
+    const season = await db.season.create({
+        data: {
+            cineforumId: cf, name: "Stagione 1", candidaturesCloseAt: new Date(),
+            categories: { connect: { id: cat.id } }, awards: { create: { awardId: award.id } },
+        },
+    });
+    const patchCat = () => app.inject({ method: "PATCH", url: `${URL}/cineforums/${cf}/categories/${cat.id}`, cookies: presi.cookies, payload: { name: "Thriller" } });
+    const patchAward = () => app.inject({ method: "PATCH", url: `${URL}/cineforums/${cf}/awards/${award.id}`, cookies: presi.cookies, payload: { name: "Fotografia" } });
+    // in bozza si modificano ancora
+    assert.equal((await patchCat()).statusCode, 200);
+    assert.equal((await patchAward()).statusCode, 200);
+
+    for (const status of ["OPEN", "DONE"] as const) {
+        await db.season.update({ where: { id: season.id }, data: { status } });
+        const c = await patchCat();
+        assert.equal(c.statusCode, 409);
+        assert.equal(c.json().message, "Usata in una rassegna avviata: crea una nuova categoria");
+        const a = await patchAward();
+        assert.equal(a.statusCode, 409);
+        assert.equal(a.json().message, "Usato in una rassegna avviata: crea un nuovo premio");
+    }
+    assert.equal((await db.category.findUniqueOrThrow({ where: { id: cat.id } })).name, "Thriller");
+    assert.equal((await db.award.findUniqueOrThrow({ where: { id: award.id } })).name, "Fotografia");
+});

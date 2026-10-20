@@ -10,13 +10,13 @@ type Item = { id: string; categoryId: string };
 
 @Controller({
     route: "/cineforums/:id/categories",
-    tags: [{ name: "Categorys", description: "Categorys of a cineforum" }],
+    tags: [{ name: "Categories", description: "Categories of a cineforum" }],
 })
 export class CategoryController {
     constructor(private readonly service: CategoryService) {}
 
     @GET("/", {
-        schema: { operationId: "listCategorys", summary: "List categories (members)", response: { 200: z.array(CategorySchema) } },
+        schema: { operationId: "listCategories", summary: "List categories (members)", response: { 200: z.array(CategorySchema) } },
         onRequest: [Authenticate()],
     })
     async list(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {

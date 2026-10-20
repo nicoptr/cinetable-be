@@ -21,6 +21,8 @@ export class AwardService {
     async update(userId: number, cineforumId: number, id: number, data: AwardUpdateDTO) {
         await requirePresident(userId, cineforumId);
         await this.find(id, cineforumId);
+        // gli archivi passati non cambiano
+        if (await this.repo.countStartedSeasons(id)) throw new httpErrors.Conflict("Usato in una rassegna avviata: crea un nuovo premio");
         return this.repo.update(id, data);
     }
 
