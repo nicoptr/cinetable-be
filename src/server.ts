@@ -3,6 +3,7 @@ import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
 import fastifyRateLimit from "@fastify/rate-limit";
 import { AuthController } from "@controllers/AuthController";
+import { UserController } from "@controllers/UserController";
 import fastifyCors from "@fastify/cors";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
@@ -190,7 +191,7 @@ export class APIServer {
         this.server.register(bootstrap, {
             // directory: resolve(__dirname, "controllers"),
             // mask: /\.controller\./,
-            controllers: [AuthController],
+            controllers: [AuthController, UserController],
             prefix: "/sub/api"
         });
     }

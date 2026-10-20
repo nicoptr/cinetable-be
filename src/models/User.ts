@@ -16,3 +16,15 @@ export const MeSchema = PublicUserSchema.extend({
         role: z.enum(["PRESIDENT", "MEMBER"]),
     })),
 });
+
+export const UpdateProfileInputSchema = z.object({
+    username: z.string().trim().min(3).max(30).optional(),
+    avatarUrl: z.string().url().startsWith("https://").nullable().optional(),
+}).strict();
+export type UpdateProfileDTO = z.infer<typeof UpdateProfileInputSchema>;
+
+export const ChangePasswordInputSchema = z.object({
+    currentPassword: z.string().min(1),
+    newPassword: z.string().min(8),
+}).strict();
+export type ChangePasswordDTO = z.infer<typeof ChangePasswordInputSchema>;

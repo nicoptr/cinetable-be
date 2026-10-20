@@ -12,6 +12,13 @@ export class UserRepository {
         return this.users.create({ data });
     }
 
+    /** Utente non verificato + token di verifica, atomici. */
+    createWithVerificationToken(data: { username: string; email: string; password: string }, tokenHash: string, expiresAt: Date): Promise<User> {
+        return this.users.create({
+            data: { ...data, authTokens: { create: { type: "VERIFY_EMAIL", tokenHash, expiresAt } } },
+        });
+    }
+
     findById(id: number): Promise<User | null> {
         return this.users.findUnique({ where: { id } });
     }

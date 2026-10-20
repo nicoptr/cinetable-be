@@ -2,7 +2,10 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { Controller, GET, POST } from "fastify-decorators";
 import { AuthService } from "@services/AuthService";
 import { UserService } from "@services/UserService";
-import { LoginDTO, LoginInputSchema } from "@models/Auth";
+import {
+    EmailInputSchema, LoginDTO, LoginInputSchema, RegisterDTO, RegisterInputSchema, ResetPasswordInputSchema, TokenInputSchema,
+} from "@models/Auth";
+import { z } from "zod";
 import { MeSchema, PublicUserSchema } from "@models/User";
 import { Authenticate } from "@middleware/Authenticate";
 import { clearSessionCookie, setSessionCookie } from "@utils/session";
@@ -30,6 +33,62 @@ export class AuthController {
         const user = await this.authService.login(req.body);
         await setSessionCookie(reply, user);
         reply.status(200).send(this.userService.toPublic(user));
+    }
+
+    @POST("/register", {
+        schema: {
+            operationId: "register",
+            summary: "Self-registration; sends the verification email",
+            body: RegisterInputSchema,
+            response: { 201: PublicUserSchema },
+        },
+        config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    })
+    async register(req: FastifyRequest<{ Body: RegisterDTO }>, reply: FastifyReply) {
+        const user = await this.authService.register(req.body);
+        reply.status(201).send(this.userService.toPublic(user));
+    }
+
+    @POST("/verify-email", {
+        schema: {
+            operationId: "verifyEmail",
+            summary: "Verify email with the emailed token and log in",
+            body: TokenInputSchema,
+            response: { 200: PublicUserSchema },
+        },
+        config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    })
+    async verifyEmail(req: FastifyRequest<{ Body: z.infer<typeof TokenInputSchema> }>, reply: FastifyReply) {
+        const user = await this.authService.verifyEmail(req.body.token);
+        await setSessionCookie(reply, user);
+        reply.status(200).send(this.userService.toPublic(user));
+    }
+
+    @POST("/resend-verification", {
+        schema: { operationId: "resendVerification", summary: "Resend the verification email", body: EmailInputSchema },
+        config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    })
+    async resendVerification(req: FastifyRequest<{ Body: z.infer<typeof EmailInputSchema> }>, reply: FastifyReply) {
+        await this.authService.resendVerification(req.body.email);
+        reply.status(204).send();
+    }
+
+    @POST("/forgot-password", {
+        schema: { operationId: "forgotPassword", summary: "Send the password reset email", body: EmailInputSchema },
+        config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    })
+    async forgotPassword(req: FastifyRequest<{ Body: z.infer<typeof EmailInputSchema> }>, reply: FastifyReply) {
+        await this.authService.forgotPassword(req.body.email);
+        reply.status(204).send();
+    }
+
+    @POST("/reset-password", {
+        schema: { operationId: "resetPassword", summary: "Set a new password with the emailed token", body: ResetPasswordInputSchema },
+        config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    })
+    async resetPassword(req: FastifyRequest<{ Body: z.infer<typeof ResetPasswordInputSchema> }>, reply: FastifyReply) {
+        await this.authService.resetPassword(req.body.token, req.body.password);
+        reply.status(204).send();
     }
 
     @POST("/logout", {

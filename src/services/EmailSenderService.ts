@@ -1,20 +1,14 @@
 import nodemailer, { Transporter } from "nodemailer";
 import { Service } from "fastify-decorators";
 import process from "process";
-
-export interface EmailOptions {
-    from?: string;
-    to: string;
-    subject: string;
-    text?: string;
-    html?: string;
-}
+import { LOGGER } from "@utils/winston";
 
 export const TEST_OUTBOX: { to: string; subject: string; html: string }[] = [];
 
 @Service()
 export class EmailSenderService {
-    private transporter: Transporter = process.env.NODE_ENV === "test"
+    // non readonly: i test lo sostituiscono per simulare SMTP giù
+    transporter: Transporter = process.env.NODE_ENV === "test"
         ? nodemailer.createTransport({ jsonTransport: true })
         : nodemailer.createTransport({
             host: process.env.SMTP_HOST || "smtp.gmail.com",
@@ -26,24 +20,19 @@ export class EmailSenderService {
             },
         });
 
-    public async sendEmail(options: EmailOptions): Promise<void> {
+    /** Non lancia mai: un invio fallito non deve far fallire la richiesta HTTP. */
+    async send(to: string, subject: string, html: string): Promise<void> {
         try {
-            const mailOptions = {
-                from: options.from || process.env.SMTP_FROM || process.env.SMTP_USER,
-                to: options.to,
-                subject: options.subject,
-                text: options.text,
-                html: options.html,
-            };
-
-            const info = await this.transporter.sendMail(mailOptions);
-            if (process.env.NODE_ENV === "test") {
-                TEST_OUTBOX.push({ to: options.to, subject: options.subject, html: options.html ?? "" });
-            }
-            console.log(`Email inviata. Destinatario <${options.to}> ${info.messageId}`);
+            const info = await this.transporter.sendMail({
+                from: process.env.SMTP_FROM || process.env.SMTP_USER,
+                to,
+                subject,
+                html,
+            });
+            if (process.env.NODE_ENV === "test") TEST_OUTBOX.push({ to, subject, html });
+            LOGGER.info(`Email inviata. Destinatario <${to}> ${info.messageId}`);
         } catch (error) {
-            console.error("Errore durante l'invio dell'email:", error);
-            throw error;
+            LOGGER.error(`Errore durante l'invio dell'email a <${to}>: ${error}`);
         }
     }
 }

@@ -23,6 +23,10 @@ export function getPrismaClient() {
 }
 
 
+export function isUniqueViolation(err: unknown): boolean {
+    return err instanceof PrismaClientKnownRequestError && err.code === "P2002";
+}
+
 // https://www.prisma.io/docs/reference/api-reference/error-reference#error-codes
 export function mapPrismaErrorToHttpError(err: PrismaClientKnownRequestError) {
     switch (err.code) {

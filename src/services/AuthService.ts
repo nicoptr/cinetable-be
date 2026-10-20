@@ -2,8 +2,14 @@ import { Service } from "fastify-decorators";
 import httpErrors from "http-errors";
 import { UserRepository } from "@repositories/UserRepository";
 import { UserService } from "@services/UserService";
-import { LoginDTO } from "@models/Auth";
+import { AuthTokenRepository } from "@repositories/AuthTokenRepository";
+import { EmailSenderService } from "@services/EmailSenderService";
+import { LoginDTO, RegisterDTO } from "@models/Auth";
 import { comparePasswords, encryptPasswordSync } from "@utils/crypto";
+import { expiresIn, generateToken, hashToken, TOKEN_TTL } from "@utils/tokens";
+import { isUniqueViolation } from "@utils/prisma";
+import { verifyEmailTemplate } from "../templates/email/verifyEmailTemplate";
+import { resetPasswordTemplate } from "../templates/email/resetPasswordTemplate";
 
 // hash fittizio: il confronto avviene anche se l'utente non esiste (tempi di risposta costanti)
 const DUMMY_HASH = encryptPasswordSync("dummy-password");
@@ -13,7 +19,64 @@ export class AuthService {
     constructor(
         private readonly userRepository: UserRepository,
         private readonly userService: UserService,
+        private readonly authTokenRepository: AuthTokenRepository,
+        private readonly email: EmailSenderService,
     ) {}
+
+    async register({ email, username, password, inviteToken }: RegisterDTO) {
+        // gli inviti arrivano con il Task 6; fino ad allora un inviteToken non va ignorato
+        if (inviteToken) throw new httpErrors.BadRequest("Invito non valido o scaduto");
+        let user;
+        const { token, hash } = generateToken();
+        try {
+            user = await this.userRepository.createWithVerificationToken(
+                { email, username, password: encryptPasswordSync(password) }, hash, expiresIn(TOKEN_TTL.VERIFY_EMAIL));
+        } catch (e) {
+            if (isUniqueViolation(e)) throw new httpErrors.Conflict("Email o username già in uso");
+            throw e;
+        }
+        await this.sendVerification(user, token);
+        return user;
+    }
+
+    async verifyEmail(token: string) {
+        const row = await this.authTokenRepository.consume(hashToken(token), "VERIFY_EMAIL");
+        if (!row) throw new httpErrors.BadRequest("Link non valido o scaduto");
+        return this.userRepository.update(row.userId, { emailVerifiedAt: new Date() });
+    }
+
+    async resendVerification(email: string) {
+        const user = await this.userRepository.findByEmail(email);
+        if (!user || user.emailVerifiedAt) return;
+        const { token, hash } = generateToken();
+        await this.authTokenRepository.create(user.id, "VERIFY_EMAIL", hash, expiresIn(TOKEN_TTL.VERIFY_EMAIL));
+        await this.sendVerification(user, token);
+    }
+
+    async forgotPassword(email: string) {
+        const user = await this.userRepository.findByEmail(email);
+        if (!user) return;
+        const { token, hash } = generateToken();
+        await this.authTokenRepository.create(user.id, "RESET_PASSWORD", hash, expiresIn(TOKEN_TTL.RESET_PASSWORD));
+        const url = `${process.env.CLIENT_URL}/reimposta-password?token=${token}`;
+        await this.email.send(user.email, "Reimposta la password", resetPasswordTemplate(user.username, url));
+    }
+
+    async resetPassword(token: string, password: string) {
+        const row = await this.authTokenRepository.consume(hashToken(token), "RESET_PASSWORD");
+        if (!row) throw new httpErrors.BadRequest("Link non valido o scaduto");
+        // il link arriva via email: averlo usato prova il possesso della casella
+        await this.userRepository.update(row.userId, {
+            password: encryptPasswordSync(password),
+            tokenVersion: { increment: 1 },
+            emailVerifiedAt: new Date(),
+        });
+    }
+
+    private sendVerification(user: { email: string; username: string }, token: string) {
+        const url = `${process.env.CLIENT_URL}/verifica-email?token=${token}`;
+        return this.email.send(user.email, "Conferma la tua email", verifyEmailTemplate(user.username, url));
+    }
 
     async login({ usernameOrEmail, password }: LoginDTO) {
         const user = await this.userRepository.findByUsernameOrEmail(usernameOrEmail);
