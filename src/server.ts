@@ -1,5 +1,8 @@
 import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import fastifyJwt from "@fastify/jwt";
+import fastifyCookie from "@fastify/cookie";
+import fastifyRateLimit from "@fastify/rate-limit";
+import { AuthController } from "@controllers/AuthController";
 import fastifyCors from "@fastify/cors";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
@@ -89,7 +92,7 @@ export class APIServer {
                 if (error instanceof HttpError) {
                     return reply.status(error.statusCode).send({
                         error: "HttpError",
-                        code: error.statusCode,
+                        code: (error as HttpError & { code?: string }).code ?? error.statusCode,
                         message: removeAnsi(error.message),
                         ...(process.env.NODE_ENV === "development" && {
                             stack: removeAnsi(error.stack ?? ""),
@@ -104,11 +107,12 @@ export class APIServer {
 
     private configureAuthentication() {
         LOGGER.info("Setup Authenticator!");
+        this.server.register(fastifyCookie);
+        this.server.register(fastifyRateLimit, { global: false });
         this.server.register(fastifyJwt, {
             secret: process.env.JWT_SECRET!,
-            sign: {
-                expiresIn: process.env.NODE_ENV === "production" ? "1d" : "30d"
-            }
+            cookie: { cookieName: "cinofili_token", signed: false },
+            sign: { expiresIn: "7d" },
         });
     }
 
@@ -129,16 +133,8 @@ export class APIServer {
     private configureCors() {
         LOGGER.info("Setup CORS configuration!");
         this.server.register(fastifyCors, {
-            origin: process.env.NODE_ENV !== "production"
-                ? [
-                    "*",
-                    // "http://localhost:4200"
-                ]
-                : [
-                    "*"
-                    // List of URLs allowed to call the API in production env from browsers
-                    // "https://google.com",
-                ],
+            origin: process.env.CLIENT_URL,
+            credentials: true,
         });
     }
 
@@ -189,7 +185,7 @@ export class APIServer {
         this.server.register(bootstrap, {
             // directory: resolve(__dirname, "controllers"),
             // mask: /\.controller\./,
-            controllers: [],
+            controllers: [AuthController],
             prefix: "/sub/api"
         });
     }
