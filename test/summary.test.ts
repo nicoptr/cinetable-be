@@ -141,8 +141,9 @@ test("la scheda resta uguale nel tempo", async () => {
     await s.open(s.trama.id);
     const first = (await s.summary(s.A)).json();
     assert.deepEqual((await s.summary(s.A)).json(), first);
+    // il film del presidente: C non l'ha votato, quindi l'unico motivo di rifiuto è la rassegna chiusa
     const vote = await app.inject({
-        method: "POST", url: `${s.base}/candidatures/${s.films[0]!.cid}/votes`, cookies: s.C.cookies,
+        method: "POST", url: `${s.base}/candidatures/${s.films.find(f => f.proposer === s.presi)!.cid}/votes`, cookies: s.C.cookies,
         payload: { votes: [{ awardId: s.regia.id, value: 1 }, { awardId: s.trama.id, value: 1 }] },
     });
     assert.equal(vote.statusCode, 400);
