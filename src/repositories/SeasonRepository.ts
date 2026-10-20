@@ -9,6 +9,7 @@ const full = {
     categories: { select: { id: true, name: true, description: true }, orderBy: { id: "asc" } },
     awards: { select: { award: { select: { id: true, name: true, question: true } } }, orderBy: { awardId: "asc" } },
     participants: { select: { userId: true, categoryId: true, user: { select: { username: true, avatarUrl: true } } }, orderBy: { id: "asc" } },
+    _count: { select: { candidatures: { where: { status: "VALID" } } } },
 } satisfies Prisma.SeasonSelect;
 
 export type SeasonRow = Prisma.SeasonGetPayload<{ select: typeof full }>;

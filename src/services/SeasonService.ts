@@ -116,7 +116,7 @@ export class SeasonService {
             myRole: membership.role,
             isParticipant: !!participant,
             myCategory,
-            candidatures: { valid: 0, expected: s.participants.length },
+            candidatures: { valid: s._count.candidatures, expected: s.participants.length },
         };
     }
 }
