@@ -19,6 +19,7 @@ nvm use 18.15.0
 yarn install
 cp .env.example .env
 ```
+Nel `DATABASE_URL` non usare `connection_limit=1`: le operazioni del gioco tengono un lock sulla rassegna dentro una transazione e, con una sola connessione, le richieste concorrenti restano in coda fino al timeout. L'esempio usa `connection_limit=5`.
 #### IMPORTANTE
 3) Aggiungere nel proprio .yarnrc.yml la parte relativa a prisma presente nel .yarnrc.yml.example
 

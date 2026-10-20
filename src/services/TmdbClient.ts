@@ -1,6 +1,7 @@
 import { Service } from "fastify-decorators";
 import httpErrors from "http-errors";
 import { TmdbMovie } from "@models/Movie";
+import { LOGGER } from "@utils/winston";
 
 type TmdbRaw = { id: number; title: string; original_title: string; release_date?: string | null; poster_path?: string | null };
 
@@ -23,11 +24,16 @@ export class TmdbClient {
                 headers: { Authorization: `Bearer ${process.env.TMDB_API_TOKEN}`, Accept: "application/json" },
                 signal: AbortSignal.timeout(5000),
             });
-        } catch {
+        } catch (err) {
+            // mai il token nei log: solo percorso e causa
+            LOGGER.warn(`TMDB ${path}: errore di rete (${(err as Error).name})`);
             throw new httpErrors.BadGateway("Servizio film non disponibile, riprova");
         }
         if (res.status === 404) return null;
-        if (!res.ok) throw new httpErrors.BadGateway("Servizio film non disponibile, riprova");
+        if (!res.ok) {
+            LOGGER.warn(`TMDB ${path}: HTTP ${res.status}`);
+            throw new httpErrors.BadGateway("Servizio film non disponibile, riprova");
+        }
         try {
             return await res.json();
         } catch {
