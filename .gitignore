@@ -25,3 +25,4 @@ public/logs
 /public/images/
 /public/pdf/
 /docker/postgres/populate-staging-db.sh
+.env.test

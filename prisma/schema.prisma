@@ -1,25 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider        = "prisma-client-js"
-  binaryTargets   = ["native", "linux-musl", "debian-openssl-3.0.x", "debian-openssl-1.1.x", "linux-musl-openssl-3.0.x"]
-  previewFeatures = ["fullTextSearch"]
-}
-
-generator zod {
-  provider = "zod-prisma"
-  output   = "./generated/zod" // (default) the directory where generated zod schemas will be saved
-
-  relationModel = true // (default) Create and export both plain and related models.
-
-  modelCase = "PascalCase" // (default) Output models using pascal case (ex. UserModel, PostModel)
-
-  modelSuffix = "Model" // (default) Suffix to apply to your prisma models when naming Zod schemas
-
-  useDecimalJs = true // represent the prisma Decimal type using Decimal.js (as Prisma does)
-
-  prismaJsonNullability = false // (default) uses prisma's scheme for JSON field nullability
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl", "debian-openssl-3.0.x", "debian-openssl-1.1.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -28,197 +9,84 @@ datasource db {
 }
 
 model User {
-  id                 Int            @id @default(autoincrement())
-  username           String         @unique
-  email              String         @unique
-  password           String
-  avatarUrl          String?
-  note               String?
-  roles              RoleToUser[]
-  subscription       Subscription[]
-  events             Event[]
-  eventSpecification Json?
-  answers            Answer[]
-  wind               AwardInEvent[]
-
-  deleted Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              Int          @id @default(autoincrement())
+  username        String       @unique
+  email           String       @unique
+  password        String
+  avatarUrl       String?
+  emailVerifiedAt DateTime?
+  tokenVersion    Int          @default(0)
+  isPlatformAdmin Boolean      @default(false)
+  memberships     Membership[]
+  authTokens      AuthToken[]
+  sentInvitations Invitation[] @relation("InvitedBy")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
-model Role {
-  name                   RoleName                @id
-  label                  String?
-  rank                   Float
-  isActive               Boolean?                @default(true)
-  users                  RoleToUser[]
-  permissionConfigs      PermissionConfig[]
-  hiddenComponentConfigs HiddenComponentConfig[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model RoleToUser {
-  id       Int      @id @default(autoincrement())
-  roleName RoleName
-  userId   Int
-  role     Role     @relation(fields: [roleName], references: [name], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  isActive Boolean  @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([roleName, userId])
-}
-
-enum RoleName {
-  GOD
-  USER
-}
-
-model PermissionConfig {
-  id       Int      @id @default(autoincrement())
-  roleName RoleName
-  role     Role     @relation(fields: [roleName], references: [name], onDelete: Cascade)
-  action   String
-  entity   String
-  scope    String
-
-  @@unique([action, entity, scope, roleName])
-  @@index([action, entity, scope])
-}
-
-model HiddenComponentConfig {
-  id        Int      @id @default(autoincrement())
-  roleName  RoleName
-  role      Role     @relation(fields: [roleName], references: [name], onDelete: Cascade)
-  context   String // core or pages
-  section   String // sidebar, settings, users, setups etc...
-  component String // users_section, download_button,
-  isActive  Boolean
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([context, section, component, roleName])
-  @@index([context, section, component])
-}
-
-model Event {
-  id                    Int            @id @default(autoincrement())
-  name                  String
-  description           String?
-  isActive              Boolean?       @default(true)
-  expiresAt             DateTime?
-  subscriptionExpiresAt DateTime
-  numberOfParticipants  Int
-  subscriptions         Subscription[]
-  categories            Category[]
-  participants          User[]
-  awards                AwardInEvent[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Subscription {
-  id                   Int       @id @default(autoincrement())
-  ownerId              Int
-  owner                User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  movieName            String
-  isValid              Boolean?  @default(true)
-  isProjectionPlanned  Boolean?  @default(false)
-  isReadyForProjection Boolean?  @default(false)
-  isReadyForRating     Boolean?  @default(false)
-  projectAt            DateTime?
-  location             String?
-  projectionOrder      Int?
-
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  categoryId Int
-
-  eventId Int
-  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  scorecard Answer[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Category {
-  id          Int     @id @default(autoincrement())
+model Cineforum {
+  id          Int          @id @default(autoincrement())
   name        String
   description String?
-
-  subscription Subscription[]
-  events       Event[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  memberships Membership[]
+  invitations Invitation[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
-model Award {
-  id          Int    @id @default(autoincrement())
-  name        String
-  description String
-
-  questionId Int?      @unique
-  question   Question? @relation
-
-  events AwardInEvent[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum MembershipRole {
+  PRESIDENT
+  MEMBER
 }
 
-model AwardInEvent {
-  id Int @id @default(autoincrement())
+model Membership {
+  id          Int            @id @default(autoincrement())
+  userId      Int
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cineforumId Int
+  cineforum   Cineforum      @relation(fields: [cineforumId], references: [id], onDelete: Cascade)
+  role        MembershipRole
+  createdAt   DateTime       @default(now())
 
-  awardId Int
-  award   Award @relation(fields: [awardId], references: [id])
-
-  eventId Int
-  event   Event @relation(fields: [eventId], references: [id])
-
-  winnerId Int?
-  winner   User? @relation(fields: [winnerId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@unique([userId, cineforumId])
 }
 
-model Question {
-  id      Int    @id @default(autoincrement())
-  ordinal Int
-  text    String
-
-  awardId Int   @unique
-  award   Award @relation(fields: [awardId], references: [id], onDelete: Cascade)
-
-  answers Answer[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
 }
 
-model Answer {
-  id    Int     @id @default(autoincrement())
-  value Int
-  text  String?
+model Invitation {
+  id          Int              @id @default(autoincrement())
+  cineforumId Int
+  cineforum   Cineforum        @relation(fields: [cineforumId], references: [id], onDelete: Cascade)
+  email       String
+  tokenHash   String           @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  invitedById Int
+  invitedBy   User             @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  questionId Int
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  @@unique([cineforumId, email])
+  @@index([email])
+}
 
-  userId Int?
-  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+enum AuthTokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
 
-  subscriptionId Int?
-  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model AuthToken {
+  id        Int           @id @default(autoincrement())
+  userId    Int
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
 }

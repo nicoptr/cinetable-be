@@ -4,7 +4,6 @@ import httpErrors from "http-errors";
 import { LOGGER } from "@utils/winston";
 import * as process from "process";
 import { PaginateOptions } from "@utils/exz";
-import _ from "lodash";
 
 let db: PrismaClient;
 export async function initializePrismaClient() {
@@ -108,8 +107,16 @@ export function getPaginationMetadata(options: PaginateOptions, totalDocs: numbe
  */
 export function getPopulateOptions(fields: string | undefined) {
     return fields?.split(" ").reduce((acc, field) => ({
-        ..._.merge(acc, destructPopulation(field)),
+        ...deepMerge(acc, destructPopulation(field)),
     }), {}) ?? {};
+}
+
+function deepMerge(a: any, b: any): any {
+    const out = { ...a };
+    for (const [k, v] of Object.entries(b)) {
+        out[k] = typeof v === "object" && v !== null && typeof out[k] === "object" ? deepMerge(out[k], v) : v;
+    }
+    return out;
 }
 
 export function destructPopulation(field: string): object {

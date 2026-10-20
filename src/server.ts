@@ -10,20 +10,10 @@ import * as process from "process";
 import { LOGGER } from "@utils/winston";
 import { jsonSchemaTransform, serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
 import { bootstrap } from "fastify-decorators";
-import { AuthController } from "@controllers/AuthController";
 import { ZodError } from "zod";
 import { FastifyApplication } from "../types";
-import { UserController } from "@controllers/UserController";
 import { HttpError } from "http-errors";
-import { ImageController } from "@controllers/ImageController";
-import { HiddenComponentConfigController } from "@controllers/HiddenComponentConfigController";
-import { RoleController } from "@controllers/RoleController";
 import { removeAnsi } from "@utils/prisma";
-import { Container } from "inversify";
-import {EventController} from "@controllers/EventController";
-import {CategoryController} from "@controllers/CategoryController";
-import {SubscriptionController} from "@controllers/SubsriptionController";
-import {AnswerController} from "@controllers/AnswerController";
 
 export class APIServer {
     private readonly server: FastifyApplication;
@@ -46,7 +36,7 @@ export class APIServer {
 
     public async start() {
         try {
-            await this.server.ready();
+            await this.ready();
             this.server.swagger();
             await this.server.listen({ host: process.env.HOST!, port: +process.env.PORT! })
                 .then(async () => {
@@ -57,6 +47,14 @@ export class APIServer {
             this.server.log.error(err);
             process.exit(1);
         }
+    }
+
+    public get app(): FastifyApplication {
+        return this.server;
+    }
+
+    public async ready(): Promise<void> {
+        await this.server.ready();
     }
 
     public async stop() {
@@ -99,11 +97,7 @@ export class APIServer {
                     });
                 }
 
-                reply.status(500).send({
-                    error: error.name,
-                    message: removeAnsi(error.message),
-                    details: (error as any).details,
-                });
+                reply.status(500).send({ error: "InternalServerError", message: "Errore imprevisto" });
             }
         );
     }
@@ -195,20 +189,7 @@ export class APIServer {
         this.server.register(bootstrap, {
             // directory: resolve(__dirname, "controllers"),
             // mask: /\.controller\./,
-            controllers: [
-                ...[ AuthController ],
-                ...[
-                    AnswerController,
-                    AuthController,
-                    ImageController,
-                    HiddenComponentConfigController,
-                    RoleController,
-                    UserController,
-                    EventController,
-                    CategoryController,
-                    SubscriptionController,
-                ].sort((curr, next) => curr.name < next.name ? -1 : 1 )
-            ],
+            controllers: [],
             prefix: "/sub/api"
         });
     }
