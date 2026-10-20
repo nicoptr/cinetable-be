@@ -1,15 +1,15 @@
 import { z } from "zod";
 
-const ids = z.array(z.number().int().positive());
+const ids = (min: number) => z.array(z.number().int().positive()).min(min).refine(a => new Set(a).size === a.length, "Valori duplicati");
 
 export const SeasonInputSchema = z.object({
     name: z.string().trim().min(2).max(80),
     description: z.string().trim().max(500).optional(),
     candidaturesCloseAt: z.coerce.date(),
     finalNightAt: z.coerce.date().optional(),
-    categoryIds: ids.min(1),
-    awardIds: ids.min(1),
-    participantUserIds: ids.min(2),
+    categoryIds: ids(1),
+    awardIds: ids(1),
+    participantUserIds: ids(2),
 }).strict();
 export type SeasonDTO = z.infer<typeof SeasonInputSchema>;
 

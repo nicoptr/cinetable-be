@@ -90,7 +90,7 @@ test("shuffle non muta l'input e restituisce una permutazione", () => {
     const copy = [...input];
     const out = shuffle(input);
     assert.deepEqual(input, copy);
-    assert.deepEqual([...out].sort(), copy);
+    assert.deepEqual([...out].sort((a, b) => a - b), copy);
 });
 
 test("membro non presidente non può creare/avviare → 403", async () => {
@@ -114,15 +114,22 @@ test("rassegna di un altro cineforum nel path del mio → 404", async () => {
 test("validazioni: partecipante non membro, categorie in eccesso, date", async () => {
     const { presi, cf, body } = await setup("d", 3, 2);
     const estraneo = await makeUser("estraneo-d@x.it");
-    const bad = [
-        { ...body, participantUserIds: [...body.participantUserIds, estraneo.id] },
-        { ...body, participantUserIds: body.participantUserIds.slice(0, 1) },
-        { ...body, candidaturesCloseAt: days(-1) },
-        { ...body, finalNightAt: days(3) },
-        { ...body, categoryIds: [999999] },
-        { ...body, awardIds: [999999] },
+    const bad: [object, string][] = [
+        [{ ...body, participantUserIds: [...body.participantUserIds, estraneo.id] }, "Partecipanti non validi"],
+        [{ ...body, participantUserIds: body.participantUserIds.slice(0, 1) }, ""],
+        [{ ...body, participantUserIds: [body.participantUserIds[0], body.participantUserIds[0]] }, "Valori duplicati"],
+        [{ ...body, awardIds: [body.awardIds[0], body.awardIds[0]] }, "Valori duplicati"],
+        [{ ...body, categoryIds: [body.categoryIds[0], body.categoryIds[0]] }, "Valori duplicati"],
+        [{ ...body, candidaturesCloseAt: days(-1) }, "La chiusura delle candidature deve essere futura"],
+        [{ ...body, finalNightAt: days(3) }, "La serata finale deve essere dopo la chiusura delle candidature"],
+        [{ ...body, categoryIds: [999999] }, "Categorie non valide"],
+        [{ ...body, awardIds: [999999] }, "Premi non validi"],
     ];
-    for (const b of bad) assert.equal((await create(cf, presi, b)).statusCode, 400);
+    for (const [b, msg] of bad) {
+        const res = await create(cf, presi, b);
+        assert.equal(res.statusCode, 400);
+        assert.ok(res.body.includes(msg), res.body);
+    }
 
     const many = await setup("d2", 1, 3); // 2 partecipanti, 3 categorie
     const res = await create(many.cf, many.presi, many.body);

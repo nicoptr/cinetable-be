@@ -98,11 +98,10 @@ export class SeasonService {
     private async validate(cineforumId: number, d: SeasonDTO, changed: Partial<SeasonDTO> = d) {
         if ("candidaturesCloseAt" in changed && d.candidaturesCloseAt <= new Date()) throw new httpErrors.BadRequest("La chiusura delle candidature deve essere futura");
         if (d.finalNightAt && d.finalNightAt <= d.candidaturesCloseAt) throw new httpErrors.BadRequest("La serata finale deve essere dopo la chiusura delle candidature");
-        const unique = (ids: number[]) => [...new Set(ids)];
-        if (changed.categoryIds && (await this.repo.countCategories(unique(d.categoryIds), cineforumId)) !== unique(d.categoryIds).length) throw new httpErrors.BadRequest("Categorie non valide");
-        if (changed.awardIds && (await this.repo.countAwards(unique(d.awardIds), cineforumId)) !== unique(d.awardIds).length) throw new httpErrors.BadRequest("Premi non validi");
-        if (changed.participantUserIds && (await this.repo.countMembers(unique(d.participantUserIds), cineforumId)) !== unique(d.participantUserIds).length) throw new httpErrors.BadRequest("Partecipanti non validi");
-        if (unique(d.categoryIds).length > unique(d.participantUserIds).length) throw new httpErrors.BadRequest("Non puoi avere più categorie che partecipanti");
+        if (changed.categoryIds && (await this.repo.countCategories(d.categoryIds, cineforumId)) !== d.categoryIds.length) throw new httpErrors.BadRequest("Categorie non valide");
+        if (changed.awardIds && (await this.repo.countAwards(d.awardIds, cineforumId)) !== d.awardIds.length) throw new httpErrors.BadRequest("Premi non validi");
+        if (changed.participantUserIds && (await this.repo.countMembers(d.participantUserIds, cineforumId)) !== d.participantUserIds.length) throw new httpErrors.BadRequest("Partecipanti non validi");
+        if (d.categoryIds.length > d.participantUserIds.length) throw new httpErrors.BadRequest("Non puoi avere più categorie che partecipanti");
     }
 
     private async view(seasonId: number, membership: Membership, participant: Participant | null): Promise<SeasonView> {
