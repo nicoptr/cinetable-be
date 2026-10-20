@@ -18,11 +18,12 @@ import fastifyHelmet from "@fastify/helmet";
 import * as process from "process";
 import { LOGGER } from "@utils/winston";
 import { jsonSchemaTransform, serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
-import { bootstrap } from "fastify-decorators";
+import { bootstrap, getInstanceByToken } from "fastify-decorators";
 import { ZodError } from "zod";
 import { FastifyApplication } from "../types";
 import httpErrors, { HttpError } from "http-errors";
 import { removeAnsi } from "@utils/prisma";
+import { ReminderService } from "@services/ReminderService";
 
 export class APIServer {
     private readonly server: FastifyApplication;
@@ -46,6 +47,7 @@ export class APIServer {
     public async start() {
         try {
             await this.ready();
+            if (process.env.NODE_ENV !== "test") getInstanceByToken<ReminderService>(ReminderService).start();
             if (process.env.NODE_ENV !== "production") this.server.swagger();
             await this.server.listen({ host: process.env.HOST!, port: +process.env.PORT! })
                 .then(async () => {
@@ -67,6 +69,7 @@ export class APIServer {
     }
 
     public async stop() {
+        getInstanceByToken<ReminderService>(ReminderService).stop();
         return new Promise<boolean>(async resolve => {
 
             if (this.server) {
