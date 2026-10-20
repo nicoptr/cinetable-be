@@ -1,3 +1,6 @@
+import { getInstanceByToken } from "fastify-decorators";
+import { TmdbClient } from "@services/TmdbClient";
+import { TmdbMovie } from "@models/Movie";
 import { buildApp } from "./helpers";
 import { getPrismaClient } from "@utils/prisma";
 import { encryptPasswordSync } from "@utils/crypto";
@@ -26,4 +29,14 @@ export async function makeCineforum(president: { id: number }, members: { id: nu
         },
     });
     return cineforum.id;
+}
+
+/** Sostituisce search/getMovie di TmdbClient con versioni che leggono dall'array (nessuna rete). */
+export function stubTmdb(movies: TmdbMovie[]): void {
+    const client = getInstanceByToken<TmdbClient>(TmdbClient);
+    client.search = async (query, _page) => ({
+        results: movies.filter(m => m.title.toLowerCase().includes(query.toLowerCase())),
+        totalPages: 1,
+    });
+    client.getMovie = async tmdbId => movies.find(m => m.tmdbId === tmdbId) ?? null;
 }

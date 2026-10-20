@@ -44,6 +44,12 @@ yarn test
 
 Swagger documentation is available at `http://localhost:5000/docs`
 
+## TMDB
+
+La ricerca film usa [TMDB](https://www.themoviedb.org/). Per ottenere il token: crea un account, poi Impostazioni > API > richiedi una chiave (uso personale) e copia l'"API Read Access Token" in `TMDB_API_TOKEN` nel tuo `.env` (obbligatorio in production). Il token resta sul backend.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
 ## Build
 
 ```

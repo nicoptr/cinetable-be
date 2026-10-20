@@ -13,6 +13,10 @@ async function start() {
         LOGGER.error("Configurazione non valida: in production servono JWT_SECRET (min 32 caratteri) e CLIENT_URL");
         process.exit(1);
     }
+    if (process.env.NODE_ENV === "production" && !process.env.TMDB_API_TOKEN) {
+        LOGGER.error("Configurazione non valida: in production serve TMDB_API_TOKEN");
+        process.exit(1);
+    }
     console.log('\x1b[1;32m%s\x1b[0m', banner);
     const prismaClient = await initializePrismaClient();
 

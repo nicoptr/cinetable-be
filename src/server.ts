@@ -9,6 +9,7 @@ import { InvitationController, InviteeController } from "@controllers/Invitation
 import { CategoryController } from "@controllers/CategoryController";
 import { AwardController } from "@controllers/AwardController";
 import { SeasonController } from "@controllers/SeasonController";
+import { MovieController } from "@controllers/MovieController";
 import fastifyCors from "@fastify/cors";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
@@ -203,7 +204,7 @@ export class APIServer {
         this.server.register(bootstrap, {
             // directory: resolve(__dirname, "controllers"),
             // mask: /\.controller\./,
-            controllers: [AuthController, UserController, CineforumController, InvitationController, InviteeController, CategoryController, AwardController, SeasonController],
+            controllers: [AuthController, UserController, CineforumController, InvitationController, InviteeController, CategoryController, AwardController, SeasonController, MovieController],
             prefix: "/sub/api"
         });
     }
