@@ -15,7 +15,7 @@ import { jsonSchemaTransform, serializerCompiler, validatorCompiler, ZodTypeProv
 import { bootstrap } from "fastify-decorators";
 import { ZodError } from "zod";
 import { FastifyApplication } from "../types";
-import { HttpError } from "http-errors";
+import httpErrors, { HttpError } from "http-errors";
 import { removeAnsi } from "@utils/prisma";
 
 export class APIServer {
@@ -78,7 +78,8 @@ export class APIServer {
         this.server.setSerializerCompiler(serializerCompiler);
         this.server.setErrorHandler(
             (error: Error, req: FastifyRequest, reply: FastifyReply) => {
-                LOGGER.error(`${error} \n ${error.stack}`);
+                if (error instanceof HttpError && error.statusCode < 500) LOGGER.warn(`${error}`);
+                else LOGGER.error(`${error} \n ${error.stack}`);
                 if (error instanceof ZodError) {
                     reply.status(400).send({
                         error: error.name,
@@ -108,10 +109,14 @@ export class APIServer {
     private configureAuthentication() {
         LOGGER.info("Setup Authenticator!");
         this.server.register(fastifyCookie);
-        this.server.register(fastifyRateLimit, { global: false });
+        this.server.register(fastifyRateLimit, {
+            global: false,
+            errorResponseBuilder: () => new httpErrors.TooManyRequests("Troppi tentativi, riprova tra poco"),
+        });
         this.server.register(fastifyJwt, {
             secret: process.env.JWT_SECRET!,
             cookie: { cookieName: "cinofili_token", signed: false },
+            verify: { onlyCookie: true },
             sign: { expiresIn: "7d" },
         });
     }
@@ -133,7 +138,7 @@ export class APIServer {
     private configureCors() {
         LOGGER.info("Setup CORS configuration!");
         this.server.register(fastifyCors, {
-            origin: process.env.CLIENT_URL,
+            origin: process.env.CLIENT_URL ?? false,
             credentials: true,
         });
     }

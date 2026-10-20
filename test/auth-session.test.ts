@@ -18,8 +18,10 @@ after(async () => {
     await getPrismaClient().$disconnect();
 });
 
-const login = (usernameOrEmail: string, password = "password1") =>
-    app.inject({ method: "POST", url: `${URL}/login`, payload: { usernameOrEmail, password } });
+// IP distinto per ogni chiamata: i test non condividono il bucket del rate limit
+let ipCounter = 0;
+const login = (usernameOrEmail: string, password = "password1", remoteAddress = `10.0.0.${++ipCounter}`) =>
+    app.inject({ method: "POST", url: `${URL}/login`, remoteAddress, payload: { usernameOrEmail, password } });
 
 async function sessionCookie() {
     const res = await login("anna@x.it");
@@ -88,4 +90,18 @@ test("email non verificata → 403 EMAIL_NOT_VERIFIED", async () => {
 test("email con maiuscole e spazi nel login funziona", async () => {
     const res = await login(" ANNA@x.it ");
     assert.equal(res.statusCode, 200);
+});
+
+test("l'11a login dallo stesso IP → 429", async () => {
+    const ip = "10.9.9.9";
+    for (let i = 0; i < 10; i++) assert.notEqual((await login("anna@x.it", "sbagliata1", ip)).statusCode, 429);
+    const res = await login("anna@x.it", "sbagliata1", ip);
+    assert.equal(res.statusCode, 429);
+    assert.equal(res.json().message, "Troppi tentativi, riprova tra poco");
+});
+
+test("JWT valido in header Bearer senza cookie → 401", async () => {
+    const { cinofili_token } = await sessionCookie();
+    const res = await app.inject({ method: "GET", url: `${URL}/me`, headers: { authorization: `Bearer ${cinofili_token}` } });
+    assert.equal(res.statusCode, 401);
 });
