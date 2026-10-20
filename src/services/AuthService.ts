@@ -5,7 +5,7 @@ import { UserService } from "@services/UserService";
 import { AuthTokenRepository } from "@repositories/AuthTokenRepository";
 import { EmailSenderService } from "@services/EmailSenderService";
 import { LoginDTO, RegisterDTO } from "@models/Auth";
-import { comparePasswords, encryptPasswordSync } from "@utils/crypto";
+import { comparePasswords, encryptPassword, encryptPasswordSync } from "@utils/crypto";
 import { expiresIn, generateToken, hashToken, TOKEN_TTL } from "@utils/tokens";
 import { isUniqueViolation } from "@utils/prisma";
 import { verifyEmailTemplate } from "../templates/email/verifyEmailTemplate";
@@ -25,12 +25,12 @@ export class AuthService {
 
     async register({ email, username, password, inviteToken }: RegisterDTO) {
         // gli inviti arrivano con il Task 6; fino ad allora un inviteToken non va ignorato
-        if (inviteToken) throw new httpErrors.BadRequest("Invito non valido o scaduto");
+        if (inviteToken !== undefined) throw new httpErrors.BadRequest("Invito non valido o scaduto");
         let user;
         const { token, hash } = generateToken();
         try {
             user = await this.userRepository.createWithVerificationToken(
-                { email, username, password: encryptPasswordSync(password) }, hash, expiresIn(TOKEN_TTL.VERIFY_EMAIL));
+                { email, username, password: await encryptPassword(password) }, hash, expiresIn(TOKEN_TTL.VERIFY_EMAIL));
         } catch (e) {
             if (isUniqueViolation(e)) throw new httpErrors.Conflict("Email o username già in uso");
             throw e;
@@ -67,7 +67,7 @@ export class AuthService {
         if (!row) throw new httpErrors.BadRequest("Link non valido o scaduto");
         // il link arriva via email: averlo usato prova il possesso della casella
         await this.userRepository.update(row.userId, {
-            password: encryptPasswordSync(password),
+            password: await encryptPassword(password),
             tokenVersion: { increment: 1 },
             emailVerifiedAt: new Date(),
         });

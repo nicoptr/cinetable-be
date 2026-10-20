@@ -1,4 +1,4 @@
-import { compare, genSaltSync, hashSync } from "bcryptjs";
+import { compare, genSaltSync, hash, hashSync } from "bcryptjs";
 import { randomBytes } from "crypto";
 
 /**
@@ -9,6 +9,11 @@ import { randomBytes } from "crypto";
  */
 export function encryptPasswordSync(password: string): string {
     return hashSync(password, genSaltSync(parseInt(process.env.SALT_ROUNDS || "12")));
+}
+
+/** Async variant: does not block the event loop (use on request paths). */
+export async function encryptPassword(password: string): Promise<string> {
+    return hash(password, parseInt(process.env.SALT_ROUNDS || "12"));
 }
 
 /**

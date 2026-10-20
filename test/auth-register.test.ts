@@ -63,6 +63,9 @@ test("registrazione con inviteToken → 400 finché gli inviti non esistono", as
     const res = await register({ email: "inv@x.it", username: "inv", password: "password1", inviteToken: "abc" });
     assert.equal(res.statusCode, 400);
     assert.equal(res.json().message, "Invito non valido o scaduto");
+    const empty = await register({ email: "inv@x.it", username: "inv", password: "password1", inviteToken: "" });
+    assert.equal(empty.statusCode, 400);
+    assert.equal(empty.json().message, "Invito non valido o scaduto");
     assert.equal(await getPrismaClient().user.count({ where: { email: "inv@x.it" } }), 0);
 });
 

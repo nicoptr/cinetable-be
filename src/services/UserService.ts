@@ -3,7 +3,7 @@ import { Service } from "fastify-decorators";
 import httpErrors from "http-errors";
 import { PublicUser, UpdateProfileDTO, ChangePasswordDTO } from "@models/User";
 import { UserRepository } from "@repositories/UserRepository";
-import { comparePasswords, encryptPasswordSync } from "@utils/crypto";
+import { comparePasswords, encryptPassword } from "@utils/crypto";
 import { isUniqueViolation } from "@utils/prisma";
 
 @Service()
@@ -29,6 +29,6 @@ export class UserService {
         if (!user || !(await comparePasswords(user.password, currentPassword))) {
             throw new httpErrors.BadRequest("Password attuale non corretta");
         }
-        return this.userRepository.update(userId, { password: encryptPasswordSync(newPassword), tokenVersion: { increment: 1 } });
+        return this.userRepository.update(userId, { password: await encryptPassword(newPassword), tokenVersion: { increment: 1 } });
     }
 }
