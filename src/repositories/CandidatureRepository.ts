@@ -96,7 +96,7 @@ export class CandidatureRepository {
 
     /** Una candidatura non svelata o di un'altra rassegna non esiste: null. */
     findRevealed(seasonId: number, id: number) {
-        return getPrismaClient().candidature.findFirst({ where: { id, seasonId, revealedAt: { not: null } }, select: { id: true } });
+        return getPrismaClient().candidature.findFirst({ where: { id, seasonId, revealedAt: { not: null } }, select: { screeningAt: true } });
     }
 
     planScreening(id: number, d: { screeningAt: Date; location: string }) {

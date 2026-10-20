@@ -109,7 +109,11 @@ export class CandidatureService {
     async planScreening(userId: number, cineforumId: number, seasonId: number, candidatureId: number, data: ScreeningDTO): Promise<ProgramItem> {
         await requirePresident(userId, cineforumId);
         const { season, participant } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
-        if (!(await this.repo.findRevealed(season.id, candidatureId))) throw new httpErrors.NotFound("Film non trovato");
+        if (season.status !== "SCREENING") throw new httpErrors.BadRequest("Non modificabile in questa fase");
+        const revealed = await this.repo.findRevealed(season.id, candidatureId);
+        if (!revealed) throw new httpErrors.NotFound("Film non trovato");
+        // una proiezione già fatta non torna nel futuro: bloccherebbe di nuovo reveal-next
+        if (revealed.screeningAt && revealed.screeningAt <= new Date()) throw new httpErrors.BadRequest("Proiezione già avvenuta");
         if (data.screeningAt < new Date()) throw new httpErrors.BadRequest("La proiezione non può essere nel passato");
 
         const row = await this.repo.planScreening(candidatureId, data);

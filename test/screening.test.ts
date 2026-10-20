@@ -186,6 +186,25 @@ test("screening su candidatura non svelata → 404", async () => {
     }
 });
 
+test("screening: proiezione già avvenuta → 400; fuori da SCREENING → 400, nessuna email", async () => {
+    const s = await setup("f");
+    const db = getPrismaClient();
+    const item = (await s.reveal()).json();
+    await db.candidature.update({ where: { id: item.candidatureId }, data: { screeningAt: new Date(Date.now() - 1000) } });
+    const done = await s.plan(item.candidatureId, { screeningAt: days(1), location: "Sala" });
+    assert.equal(done.statusCode, 400);
+    assert.equal(done.json().message, "Proiezione già avvenuta");
+
+    await db.candidature.update({ where: { id: item.candidatureId }, data: { screeningAt: null } });
+    for (const status of ["FINAL", "DONE"] as const) {
+        await db.season.update({ where: { id: s.id }, data: { status } });
+        const res = await s.plan(item.candidatureId, { screeningAt: days(1), location: "Sala" });
+        assert.equal(res.statusCode, 400);
+        assert.equal(res.json().message, "Non modificabile in questa fase");
+    }
+    assert.equal(TEST_OUTBOX.length, 0);
+});
+
 test("isMine true solo per il proponente", async () => {
     const s = await setup("e");
     const item = (await s.reveal()).json();
