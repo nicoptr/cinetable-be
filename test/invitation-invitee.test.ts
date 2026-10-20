@@ -97,7 +97,9 @@ test("utente già registrato: lo vede in /invitations/mine, accetta, diventa MEM
     assert.equal((await lookup(token)).json().userExists, true);
     const mine = await app.inject({ method: "GET", url: `${URL}/invitations/mine`, cookies });
     assert.equal(mine.json().length, 1);
-    assert.deepEqual({ ...mine.json()[0], expiresAt: undefined }, { id, cineforumId: cf, cineforumName: "Club", invitedBy: "p6" });
+    const { expiresAt, ...rest } = mine.json()[0];
+    assert.ok(new Date(expiresAt) > new Date());
+    assert.deepEqual(rest, { id, cineforumId: cf, cineforumName: "Club", invitedBy: "p6" });
     const acc = await app.inject({ method: "POST", url: `${URL}/invitations/${id}/accept`, cookies });
     assert.equal(acc.statusCode, 200);
     assert.deepEqual(acc.json(), { cineforumId: cf });
