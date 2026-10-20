@@ -71,15 +71,20 @@ export class ResultsService {
         };
     }
 
-    /** Da chiamare solo su buste aperte: espone i proponenti dei vincitori. */
-    private async result(db: Db, seasonId: number, e: Envelope): Promise<AwardResult> {
+    /** Somma e numero di voti ricevuti da ogni film valido per un premio (solo chi ha voti). */
+    async scores(db: Db, seasonId: number, awardId: number) {
         const groups = await db.vote.groupBy({
             by: ["candidatureId"],
-            where: { awardId: e.award.id, candidature: { seasonId, status: "VALID" } },
+            where: { awardId, candidature: { seasonId, status: "VALID" } },
             _sum: { value: true },
             _count: { _all: true },
         });
-        const scores = new Map(groups.map(g => [g.candidatureId, { candidatureId: g.candidatureId, sum: g._sum.value ?? 0, count: g._count._all }]));
+        return new Map(groups.map(g => [g.candidatureId, { candidatureId: g.candidatureId, sum: g._sum.value ?? 0, count: g._count._all }]));
+    }
+
+    /** Da chiamare solo su buste aperte: espone i proponenti dei vincitori. */
+    private async result(db: Db, seasonId: number, e: Envelope): Promise<AwardResult> {
+        const scores = await this.scores(db, seasonId, e.award.id);
         const winners = await db.candidature.findMany({ where: { id: { in: findWinners([...scores.values()]) } }, select: filmSelect, orderBy: { projectionOrder: "asc" } });
         return {
             awardId: e.award.id,

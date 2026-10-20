@@ -3,7 +3,8 @@ import { Controller, GET, PATCH, POST } from "fastify-decorators";
 import { z } from "zod";
 import { SeasonService } from "@services/SeasonService";
 import { ResultsService } from "@services/ResultsService";
-import { AwardResultSchema, SeasonResultsSchema, SeasonDTO, SeasonInputSchema, SeasonSummarySchema, SeasonUpdateDTO, SeasonUpdateSchema, SeasonViewSchema } from "@models/Season";
+import { SummaryService } from "@services/SummaryService";
+import { AwardResultSchema, SeasonResultsSchema, SeasonRecapSchema, SeasonDTO, SeasonInputSchema, SeasonSummarySchema, SeasonUpdateDTO, SeasonUpdateSchema, SeasonViewSchema } from "@models/Season";
 import { Authenticate } from "@middleware/Authenticate";
 import { parseId } from "@utils/params";
 
@@ -15,7 +16,7 @@ const seasonId = (p: Item) => parseId(p.seasonId, "Rassegna non trovata");
     tags: [{ name: "Seasons", description: "Seasons (rassegne) of a cineforum" }],
 })
 export class SeasonController {
-    constructor(private readonly service: SeasonService, private readonly results: ResultsService) {}
+    constructor(private readonly service: SeasonService, private readonly results: ResultsService, private readonly summary: SummaryService) {}
 
     @GET("/", {
         schema: { operationId: "listSeasons", summary: "List seasons (members)", response: { 200: z.array(SeasonSummarySchema) } },
@@ -72,5 +73,13 @@ export class SeasonController {
     })
     async getResults(req: FastifyRequest<{ Params: Item }>, reply: FastifyReply) {
         reply.status(200).send(await this.results.results(req.user.id, parseId(req.params.id), seasonId(req.params)));
+    }
+
+    @GET("/:seasonId/summary", {
+        schema: { operationId: "getSeasonSummary", summary: "Permanent recap of a concluded season (members)", response: { 200: SeasonRecapSchema } },
+        onRequest: [Authenticate()],
+    })
+    async getSummary(req: FastifyRequest<{ Params: Item }>, reply: FastifyReply) {
+        reply.status(200).send(await this.summary.get(req.user.id, parseId(req.params.id), seasonId(req.params)));
     }
 }

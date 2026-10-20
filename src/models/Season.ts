@@ -69,3 +69,29 @@ export const SeasonResultsSchema = z.object({
     proposers: z.array(z.object({ candidatureId: z.number(), movie: MovieViewSchema, proposer: proposerView })),
 });
 export type SeasonResults = z.infer<typeof SeasonResultsSchema>;
+
+const personView = proposerView;
+export const SeasonRecapSchema = z.object({
+    season: z.object({
+        id: z.number(), name: z.string(), description: z.string().nullable(),
+        candidaturesCloseAt: z.string(), finalNightAt: z.string().nullable(),
+        /** revealedAt dell'ultima busta. */
+        concludedAt: z.string(),
+    }),
+    categories: z.array(categoryView),
+    participants: z.array(personView),
+    /** In ordine di proiezione. Mai i voti dei singoli: solo medie e conteggi. */
+    films: z.array(z.object({
+        order: z.number(),
+        movie: MovieViewSchema,
+        category: z.object({ id: z.number(), name: z.string() }).nullable(),
+        proposer: proposerView,
+        screeningAt: z.string().nullable(),
+        location: z.string().nullable(),
+        scores: z.array(z.object({ awardId: z.number(), average: z.number().nullable(), votes: z.number() })),
+        awardsWon: z.array(z.number()),
+    })),
+    /** In ordine di apertura delle buste. */
+    awards: z.array(AwardResultSchema),
+});
+export type SeasonRecap = z.infer<typeof SeasonRecapSchema>;
