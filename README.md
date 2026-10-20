@@ -50,7 +50,7 @@ cp .env.e2e.example .env.e2e     # poi inserire le credenziali del DB locale
 yarn build
 node scripts/e2e-seed.js base    # base | open | screening | final | done
 ```
-Gli e2e di `cinofili-fe` (`npm run e2e`) avviano questo backend sulla porta 5055 con `.env.e2e` e chiamano `scripts/e2e-seed.js` prima di ogni test. Lo script rifiuta un `DATABASE_URL` che non contenga `_e2e`, svuota tutte le tabelle e ricrea sempre gli stessi dati con gli stessi id; scenari, token fissi e voti attesi sono descritti in testa al file.
+Gli e2e di `cinofili-fe` (`npm run e2e`) avviano questo backend sulla porta 5055 con `.env.e2e` (`TRUST_PROXY=true`: ogni test manda un `X-Forwarded-For` diverso, così i rate limit per IP non si sommano) e chiamano `scripts/e2e-seed.js` prima di ogni test. Lo script rifiuta un `DATABASE_URL` il cui nome del database non finisca con `_e2e`, svuota tutte le tabelle e ricrea sempre gli stessi dati con gli stessi id; scenari, token fissi e voti attesi sono descritti in testa al file.
 
 Swagger documentation is available at `http://localhost:5000/docs`
 
@@ -71,5 +71,5 @@ Build output will be available at `/dist/`
 
 - Questa versione richiede un database **vuoto**: si riparte da zero (nessuna migrazione dei dati precedenti).
 - In production `JWT_SECRET` (min 32 caratteri) e `CLIENT_URL` sono obbligatori, altrimenti l'avvio fallisce.
-- Dietro un reverse proxy impostare `TRUST_PROXY=true`, altrimenti i rate limit per IP vedono solo l'IP del proxy.
+- Il backend gira dietro il frontend Next (che inoltra `/api/*` a `/sub/api/*`) con `TRUST_PROXY=true`, altrimenti i rate limit per IP vedono solo l'IP del proxy. Con `TRUST_PROXY=true` il backend **non deve essere raggiungibile direttamente** da Internet: chiunque potrebbe inviare un `X-Forwarded-For` falso e aggirare i rate limit. Esporre solo il frontend (rete privata, firewall o bind su localhost).
 - Email (verifica, reset password, inviti): configurare `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` e `SMTP_FROM`. Se l'SMTP non risponde le richieste riescono comunque e l'errore viene solo registrato nei log.

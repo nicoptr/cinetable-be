@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Seed deterministico per gli e2e del frontend: `node scripts/e2e-seed.js <base|open|screening|final|done>`.
- * Legge DATABASE_URL da `.env.e2e` e rifiuta qualsiasi DB il cui URL non contenga `_e2e`.
+ * Legge DATABASE_URL da `.env.e2e` e rifiuta qualsiasi DB il cui nome non finisca con `_e2e`.
  * Svuota tutte le tabelle (RESTART IDENTITY) e ricrea tutto sempre nello stesso ordine: gli id sono fissi.
  *
  * base
@@ -45,7 +45,14 @@ if (!SCENARIOS.includes(scenario)) {
     console.error(`Uso: node scripts/e2e-seed.js <${SCENARIOS.join("|")}>`);
     process.exit(1);
 }
-if (!(process.env.DATABASE_URL ?? "").includes("_e2e")) {
+const dbName = (() => {
+    try {
+        return new URL(process.env.DATABASE_URL).pathname;
+    } catch {
+        return "";
+    }
+})();
+if (!/_e2e$/.test(dbName)) {
     console.error("DATABASE_URL non è un database e2e: mi rifiuto di svuotarlo");
     process.exit(1);
 }
