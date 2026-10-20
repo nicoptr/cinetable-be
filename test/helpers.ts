@@ -21,7 +21,7 @@ export async function buildApp(): Promise<FastifyApplication> {
 
 export async function resetDb(): Promise<void> {
     await getPrismaClient().$executeRawUnsafe(
-        'TRUNCATE "User","Cineforum","Membership","Invitation","AuthToken" RESTART IDENTITY CASCADE'
+        'TRUNCATE "User","Cineforum","Membership","Invitation","AuthToken","Category","Award","Season","Movie" RESTART IDENTITY CASCADE'
     );
     TEST_OUTBOX.length = 0;
 }

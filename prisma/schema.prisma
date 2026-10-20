@@ -9,19 +9,20 @@ datasource db {
 }
 
 model User {
-  id              Int          @id @default(autoincrement())
-  username        String       @unique
-  email           String       @unique
+  id              Int           @id @default(autoincrement())
+  username        String        @unique
+  email           String        @unique
   password        String
   avatarUrl       String?
   emailVerifiedAt DateTime?
-  tokenVersion    Int          @default(0)
-  isPlatformAdmin Boolean      @default(false)
+  tokenVersion    Int           @default(0)
+  isPlatformAdmin Boolean       @default(false)
   memberships     Membership[]
   authTokens      AuthToken[]
-  sentInvitations Invitation[] @relation("InvitedBy")
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  sentInvitations Invitation[]  @relation("InvitedBy")
+  participations  Participant[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 
 model Cineforum {
@@ -30,6 +31,9 @@ model Cineforum {
   description String?
   memberships Membership[]
   invitations Invitation[]
+  categories  Category[]
+  awards      Award[]
+  seasons     Season[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -89,4 +93,134 @@ model AuthToken {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime      @default(now())
+}
+
+model Category {
+  id           Int           @id @default(autoincrement())
+  cineforumId  Int
+  cineforum    Cineforum     @relation(fields: [cineforumId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  seasons      Season[]
+  participants Participant[]
+  createdAt    DateTime      @default(now())
+}
+
+model Award {
+  id          Int           @id @default(autoincrement())
+  cineforumId Int
+  cineforum   Cineforum     @relation(fields: [cineforumId], references: [id], onDelete: Cascade)
+  name        String
+  question    String
+  seasons     SeasonAward[]
+  votes       Vote[]
+  createdAt   DateTime      @default(now())
+}
+
+enum SeasonStatus {
+  DRAFT
+  OPEN
+  SCREENING
+  FINAL
+  DONE
+}
+
+model Season {
+  id                  Int           @id @default(autoincrement())
+  cineforumId         Int
+  cineforum           Cineforum     @relation(fields: [cineforumId], references: [id], onDelete: Cascade)
+  name                String
+  description         String?
+  status              SeasonStatus  @default(DRAFT)
+  candidaturesCloseAt DateTime
+  finalNightAt        DateTime?
+  categories          Category[]
+  awards              SeasonAward[]
+  participants        Participant[]
+  candidatures        Candidature[]
+  bannedMovies        BannedMovie[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+model SeasonAward {
+  seasonId   Int
+  season     Season    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  awardId    Int
+  award      Award     @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  revealedAt DateTime?
+
+  @@id([seasonId, awardId])
+}
+
+model Participant {
+  id           Int           @id @default(autoincrement())
+  seasonId     Int
+  season       Season        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId   Int?
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  candidatures Candidature[]
+  votes        Vote[]
+
+  @@unique([seasonId, userId])
+}
+
+model Movie {
+  tmdbId        Int           @id
+  title         String
+  originalTitle String
+  year          Int?
+  posterPath    String?
+  candidatures  Candidature[]
+  updatedAt     DateTime      @updatedAt
+}
+
+enum CandidatureStatus {
+  VALID
+  DUPLICATE
+  WITHDRAWN
+}
+
+model Candidature {
+  id              Int               @id @default(autoincrement())
+  seasonId        Int
+  season          Season            @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  participantId   Int
+  participant     Participant       @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  tmdbId          Int
+  movie           Movie             @relation(fields: [tmdbId], references: [tmdbId])
+  status          CandidatureStatus @default(VALID)
+  projectionOrder Int?
+  revealedAt      DateTime?
+  screeningAt     DateTime?
+  location        String?
+  votingOpenedAt  DateTime?
+  votes           Vote[]
+  createdAt       DateTime          @default(now())
+
+  @@index([seasonId, tmdbId])
+}
+
+model BannedMovie {
+  seasonId Int
+  season   Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  tmdbId   Int
+
+  @@id([seasonId, tmdbId])
+}
+
+model Vote {
+  id            Int         @id @default(autoincrement())
+  candidatureId Int
+  candidature   Candidature @relation(fields: [candidatureId], references: [id], onDelete: Cascade)
+  awardId       Int
+  award         Award       @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  participantId Int
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  value         Int
+  createdAt     DateTime    @default(now())
+
+  @@unique([candidatureId, awardId, participantId])
 }
