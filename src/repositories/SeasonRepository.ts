@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { Service } from "fastify-decorators";
 import { getPrismaClient } from "@utils/prisma";
+import { programSelect } from "@models/Candidature";
 
 const summary = { id: true, name: true, status: true, candidaturesCloseAt: true, finalNightAt: true } as const;
 const full = {
@@ -9,6 +10,7 @@ const full = {
     categories: { select: { id: true, name: true, description: true }, orderBy: { id: "asc" } },
     awards: { select: { award: { select: { id: true, name: true, question: true } } }, orderBy: { awardId: "asc" } },
     participants: { select: { userId: true, categoryId: true, user: { select: { username: true, avatarUrl: true } } }, orderBy: { id: "asc" } },
+    candidatures: { where: { revealedAt: { not: null } }, select: programSelect, orderBy: { projectionOrder: "asc" } },
     _count: { select: { candidatures: { where: { status: "VALID" } } } },
 } satisfies Prisma.SeasonSelect;
 

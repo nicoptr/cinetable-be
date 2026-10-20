@@ -1,7 +1,9 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { Controller, GET, PUT } from "fastify-decorators";
+import { Controller, GET, PATCH, POST, PUT } from "fastify-decorators";
 import { CandidatureService } from "@services/CandidatureService";
-import { CandidatureDTO, CandidatureInputSchema, CandidatureProgressSchema, MyCandidatureViewSchema } from "@models/Candidature";
+import {
+    CandidatureDTO, CandidatureInputSchema, CandidatureProgressSchema, MyCandidatureViewSchema, ProgramItemSchema, ScreeningDTO, ScreeningInputSchema,
+} from "@models/Candidature";
 import { Authenticate } from "@middleware/Authenticate";
 import { parseId } from "@utils/params";
 
@@ -37,5 +39,22 @@ export class CandidatureController {
     })
     async progress(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
         reply.status(200).send(await this.service.progress(req.user.id, ...ids(req.params)));
+    }
+
+    @POST("/reveal-next", {
+        schema: { operationId: "revealNextMovie", summary: "Reveal the next movie in random order (president only)", response: { 200: ProgramItemSchema } },
+        onRequest: [Authenticate()],
+    })
+    async revealNext(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
+        reply.status(200).send(await this.service.revealNext(req.user.id, ...ids(req.params)));
+    }
+
+    @PATCH("/candidatures/:candidatureId/screening", {
+        schema: { operationId: "planScreening", summary: "Set date and place of a revealed movie (president only)", body: ScreeningInputSchema, response: { 200: ProgramItemSchema } },
+        onRequest: [Authenticate()],
+    })
+    async planScreening(req: FastifyRequest<{ Params: Params & { candidatureId: string }; Body: ScreeningDTO }>, reply: FastifyReply) {
+        const candidatureId = parseId(req.params.candidatureId, "Film non trovato");
+        reply.status(200).send(await this.service.planScreening(req.user.id, ...ids(req.params), candidatureId, req.body));
     }
 }

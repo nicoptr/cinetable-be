@@ -4,6 +4,7 @@ import httpErrors from "http-errors";
 import { SeasonRepository, SeasonRow } from "@repositories/SeasonRepository";
 import { EmailSenderService } from "@services/EmailSenderService";
 import { SeasonDTO, SeasonUpdateDTO, SeasonView } from "@models/Season";
+import { toProgramItem } from "@models/Candidature";
 import { requireMember, requirePresident } from "@utils/membership";
 import { shuffle } from "@utils/random";
 import { seasonLaunchedTemplate } from "../templates/email/seasonLaunchedTemplate";
@@ -106,6 +107,7 @@ export class SeasonService {
 
     private async view(seasonId: number, membership: Membership, participant: Participant | null): Promise<SeasonView> {
         const s: SeasonRow = await this.repo.findFull(seasonId);
+        const viewer = { participantId: participant?.id ?? null, isPresident: membership.role === "PRESIDENT" };
         const myCategory = participant?.categoryId ? s.categories.find(c => c.id === participant.categoryId) ?? null : null;
         return {
             id: s.id, name: s.name, description: s.description, status: s.status,
@@ -117,6 +119,9 @@ export class SeasonService {
             isParticipant: !!participant,
             myCategory,
             candidatures: { valid: s._count.candidatures, expected: s.participants.length },
+            program: s.candidatures.map(c => toProgramItem(c, viewer)),
+            // le svelate sono VALID e dopo la chiusura non cambiano più stato
+            remainingToReveal: s._count.candidatures - s.candidatures.length,
         };
     }
 }

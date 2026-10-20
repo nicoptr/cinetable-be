@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ProgramItemSchema } from "@models/Candidature";
 
 const ids = (min: number) => z.array(z.number().int().positive()).min(min).refine(a => new Set(a).size === a.length, "Valori duplicati");
 
@@ -35,5 +36,8 @@ export const SeasonViewSchema = SeasonSummarySchema.extend({
     isParticipant: z.boolean(),
     myCategory: categoryView.nullable(),
     candidatures: z.object({ valid: z.number(), expected: z.number() }),
+    /** Solo i film svelati, in ordine di proiezione. */
+    program: z.array(ProgramItemSchema),
+    remainingToReveal: z.number(),
 });
 export type SeasonView = z.infer<typeof SeasonViewSchema>;

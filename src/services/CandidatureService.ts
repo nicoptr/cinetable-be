@@ -6,10 +6,12 @@ import { MovieRepository } from "@repositories/MovieRepository";
 import { SeasonService } from "@services/SeasonService";
 import { TmdbClient } from "@services/TmdbClient";
 import { EmailSenderService } from "@services/EmailSenderService";
-import { MyCandidatureView } from "@models/Candidature";
+import { MyCandidatureView, ProgramItem, ScreeningDTO, toProgramItem } from "@models/Candidature";
 import { toMovieView } from "@models/Movie";
 import { requirePresident } from "@utils/membership";
 import { candidatureDuplicateTemplate } from "../templates/email/candidatureDuplicateTemplate";
+import { screeningPlannedTemplate } from "../templates/email/screeningPlannedTemplate";
+import { shuffle } from "@utils/random";
 
 const BANNED = "Film non disponibile per questa rassegna";
 
@@ -78,5 +80,42 @@ export class CandidatureService {
         const rows = await this.repo.participantsProgress(season.id);
         const missing = rows.filter(r => r._count.candidatures === 0).map(r => ({ userId: r.userId, username: r.user.username }));
         return { expected: rows.length, valid: rows.length - missing.length, missing };
+    }
+
+    /** Svela il prossimo film; al primo svelamento sorteggia l'ordine di proiezione. */
+    async revealNext(userId: number, cineforumId: number, seasonId: number): Promise<ProgramItem> {
+        await requirePresident(userId, cineforumId);
+        const { season, participant } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
+
+        const revealedId = await this.repo.transaction(async tx => {
+            // due clic contemporanei passano uno alla volta
+            const locked = await this.repo.lockSeason(tx, season.id);
+            if (locked.status !== "OPEN" && locked.status !== "SCREENING") throw new httpErrors.BadRequest("Non ci sono film da svelare in questa fase");
+            if (locked.candidaturesCloseAt > new Date()) throw new httpErrors.BadRequest("Le candidature sono ancora aperte");
+            const valid = await this.repo.validIds(tx, season.id);
+            if (valid.length < (await this.repo.countParticipants(tx, season.id))) {
+                throw new httpErrors.BadRequest("Mancano ancora dei film: sposta la scadenza per chi deve candidare");
+            }
+            if (locked.status === "OPEN") await this.repo.startScreening(tx, season.id, shuffle(valid).map(c => c.id));
+            if (await this.repo.findPendingScreening(tx, season.id)) throw new httpErrors.BadRequest("Proietta il film in programma prima di svelare il prossimo");
+            const next = await this.repo.findNextToReveal(tx, season.id);
+            if (!next || !(await this.repo.reveal(tx, next.id))) throw new httpErrors.BadRequest("Hai già svelato tutti i film");
+            return next.id;
+        });
+        return toProgramItem(await this.repo.findProgramRow(revealedId), { participantId: participant?.id ?? null, isPresident: true });
+    }
+
+    /** Solo film svelati: gli altri sono indistinguibili da inesistenti. */
+    async planScreening(userId: number, cineforumId: number, seasonId: number, candidatureId: number, data: ScreeningDTO): Promise<ProgramItem> {
+        await requirePresident(userId, cineforumId);
+        const { season, participant } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
+        if (!(await this.repo.findRevealed(season.id, candidatureId))) throw new httpErrors.NotFound("Film non trovato");
+        if (data.screeningAt < new Date()) throw new httpErrors.BadRequest("La proiezione non può essere nel passato");
+
+        const row = await this.repo.planScreening(candidatureId, data);
+        const html = screeningPlannedTemplate(row.movie.title, data.screeningAt, data.location);
+        const recipients = await this.repo.participantEmails(season.id);
+        await Promise.all(recipients.map(r => this.email.send(r.user.email, "Prossima proiezione", html)));
+        return toProgramItem(row, { participantId: participant?.id ?? null, isPresident: true });
     }
 }
