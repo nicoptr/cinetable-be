@@ -1,19 +1,12 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { Controller, GET, PATCH, POST } from "fastify-decorators";
-import httpErrors from "http-errors";
 import { z } from "zod";
 import { CineforumService } from "@services/CineforumService";
 import {
     CineforumDetailSchema, CineforumDTO, CineforumInputSchema, CineforumListItemSchema, CineforumSchema, CineforumUpdateDTO, CineforumUpdateSchema,
 } from "@models/Cineforum";
 import { Authenticate } from "@middleware/Authenticate";
-
-/** Un :id non numerico è un cineforum che non esiste: 404, non 400/500. */
-function parseId(raw: string): number {
-    const id = Number(raw);
-    if (!Number.isSafeInteger(id) || id < 1) throw new httpErrors.NotFound("Cineforum non trovato");
-    return id;
-}
+import { parseId } from "@utils/params";
 
 @Controller({
     route: "/cineforums",
