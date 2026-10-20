@@ -9,6 +9,10 @@ import process from "process";
 import { banner } from "@utils/banner";
 
 async function start() {
+    if (process.env.NODE_ENV === "production" && ((process.env.JWT_SECRET ?? "").length < 32 || !process.env.CLIENT_URL)) {
+        LOGGER.error("Configurazione non valida: in production servono JWT_SECRET (min 32 caratteri) e CLIENT_URL");
+        process.exit(1);
+    }
     console.log('\x1b[1;32m%s\x1b[0m', banner);
     const prismaClient = await initializePrismaClient();
 

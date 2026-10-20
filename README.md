@@ -34,6 +34,14 @@ yarn prisma generate
 yarn prisma migrate dev --name "init"
 ```
 
+6) Tests
+```
+cp .env.test.example .env.test   # poi inserire le credenziali del DB locale
+# creare il database `cinofili_test` (es. createdb cinofili_test)
+yarn test
+```
+`yarn test` resetta il DB `cinofili_test`, compila ed esegue i test.
+
 Swagger documentation is available at `http://localhost:5000/docs`
 
 ## Build
@@ -42,3 +50,9 @@ Swagger documentation is available at `http://localhost:5000/docs`
 yarn build
 ```
 Build output will be available at `/dist/`
+
+## Deploy
+
+- Questa versione richiede un database **vuoto**: si riparte da zero (nessuna migrazione dei dati precedenti).
+- In production `JWT_SECRET` (min 32 caratteri) e `CLIENT_URL` sono obbligatori, altrimenti l'avvio fallisce.
+- Dietro un reverse proxy impostare `TRUST_PROXY=true`, altrimenti i rate limit per IP vedono solo l'IP del proxy.

@@ -29,6 +29,7 @@ export class APIServer {
             logger: process.env.NODE_ENV === 'development',
             disableRequestLogging: true,
             pluginTimeout: 100000,
+            trustProxy: process.env.TRUST_PROXY === "true",
         })
         this.server = app.withTypeProvider<ZodTypeProvider>();
         this.setupMultipart();
