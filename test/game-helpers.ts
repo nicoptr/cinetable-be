@@ -1,7 +1,7 @@
+import { buildApp } from "./helpers";
 import { getInstanceByToken } from "fastify-decorators";
 import { TmdbClient } from "@services/TmdbClient";
 import { TmdbMovie } from "@models/Movie";
-import { buildApp } from "./helpers";
 import { getPrismaClient } from "@utils/prisma";
 import { encryptPasswordSync } from "@utils/crypto";
 
