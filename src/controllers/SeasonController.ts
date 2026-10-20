@@ -2,7 +2,8 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { Controller, GET, PATCH, POST } from "fastify-decorators";
 import { z } from "zod";
 import { SeasonService } from "@services/SeasonService";
-import { SeasonDTO, SeasonInputSchema, SeasonSummarySchema, SeasonUpdateDTO, SeasonUpdateSchema, SeasonViewSchema } from "@models/Season";
+import { ResultsService } from "@services/ResultsService";
+import { AwardResultSchema, SeasonResultsSchema, SeasonDTO, SeasonInputSchema, SeasonSummarySchema, SeasonUpdateDTO, SeasonUpdateSchema, SeasonViewSchema } from "@models/Season";
 import { Authenticate } from "@middleware/Authenticate";
 import { parseId } from "@utils/params";
 
@@ -14,7 +15,7 @@ const seasonId = (p: Item) => parseId(p.seasonId, "Rassegna non trovata");
     tags: [{ name: "Seasons", description: "Seasons (rassegne) of a cineforum" }],
 })
 export class SeasonController {
-    constructor(private readonly service: SeasonService) {}
+    constructor(private readonly service: SeasonService, private readonly results: ResultsService) {}
 
     @GET("/", {
         schema: { operationId: "listSeasons", summary: "List seasons (members)", response: { 200: z.array(SeasonSummarySchema) } },
@@ -54,5 +55,22 @@ export class SeasonController {
     })
     async launch(req: FastifyRequest<{ Params: Item }>, reply: FastifyReply) {
         reply.status(200).send(await this.service.launch(req.user.id, parseId(req.params.id), seasonId(req.params)));
+    }
+
+    @POST("/:seasonId/awards/:awardId/open", {
+        schema: { operationId: "openEnvelope", summary: "Open an award envelope at the final night; idempotent (president only)", response: { 200: AwardResultSchema } },
+        onRequest: [Authenticate()],
+    })
+    async openEnvelope(req: FastifyRequest<{ Params: Item & { awardId: string } }>, reply: FastifyReply) {
+        const awardId = parseId(req.params.awardId, "Premio non trovato");
+        reply.status(200).send(await this.results.open(req.user.id, parseId(req.params.id), seasonId(req.params), awardId));
+    }
+
+    @GET("/:seasonId/results", {
+        schema: { operationId: "getSeasonResults", summary: "Opened envelopes; every proposer once all are open (members)", response: { 200: SeasonResultsSchema } },
+        onRequest: [Authenticate()],
+    })
+    async getResults(req: FastifyRequest<{ Params: Item }>, reply: FastifyReply) {
+        reply.status(200).send(await this.results.results(req.user.id, parseId(req.params.id), seasonId(req.params)));
     }
 }

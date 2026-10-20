@@ -49,7 +49,6 @@ export class VoteService {
         const { season, participant } = await this.seasons.requireParticipant(userId, cineforumId, seasonId);
         const c = await this.requireRevealed(season.id, candidatureId);
         if (!c.votingOpenedAt) throw new httpErrors.BadRequest("Il voto non è aperto");
-        if (season.status === "FINAL" || season.status === "DONE") throw new httpErrors.BadRequest("Le votazioni sono chiuse");
         if (c.participantId === participant.id) throw new httpErrors.Forbidden("Non puoi votare il tuo film");
 
         const awardIds = await this.repo.seasonAwardIds(season.id);
@@ -60,6 +59,9 @@ export class VoteService {
         const already = new httpErrors.Conflict("Hai già votato questo film");
         try {
             await this.repo.transaction(async tx => {
+                // stesso lock dell'apertura delle buste: un voto non entra dopo un risultato annunciato
+                const { status } = await this.candidatures.lockSeason(tx, season.id);
+                if (status === "FINAL" || status === "DONE") throw new httpErrors.BadRequest("Le votazioni sono chiuse");
                 if (await this.repo.hasVoted(tx, candidatureId, participant.id)) throw already;
                 await this.repo.createMany(tx, candidatureId, participant.id, data.votes);
             });

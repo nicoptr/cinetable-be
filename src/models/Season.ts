@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ProgramItemSchema } from "@models/Candidature";
+import { MovieViewSchema } from "@models/Movie";
 
 const ids = (min: number) => z.array(z.number().int().positive()).min(min).refine(a => new Set(a).size === a.length, "Valori duplicati");
 
@@ -41,3 +42,30 @@ export const SeasonViewSchema = SeasonSummarySchema.extend({
     remainingToReveal: z.number(),
 });
 export type SeasonView = z.infer<typeof SeasonViewSchema>;
+
+const proposerView = z.object({ userId: z.number(), username: z.string(), avatarUrl: z.string().nullable() });
+
+export const AwardResultSchema = z.object({
+    awardId: z.number(),
+    name: z.string(),
+    question: z.string(),
+    revealedAt: z.string(),
+    winners: z.array(z.object({
+        movie: MovieViewSchema,
+        category: z.object({ id: z.number(), name: z.string() }).nullable(),
+        proposer: proposerView,
+        /** Arrotondata a 1 decimale, solo per mostrarla: il vincitore si decide sul confronto esatto. */
+        average: z.number(),
+        votes: z.number(),
+    })),
+});
+export type AwardResult = z.infer<typeof AwardResultSchema>;
+
+export const SeasonResultsSchema = z.object({
+    /** Solo le buste aperte, in ordine di apertura. */
+    awards: z.array(AwardResultSchema),
+    allRevealed: z.boolean(),
+    /** Vuoto finché non sono aperte tutte le buste. */
+    proposers: z.array(z.object({ candidatureId: z.number(), movie: MovieViewSchema, proposer: proposerView })),
+});
+export type SeasonResults = z.infer<typeof SeasonResultsSchema>;
