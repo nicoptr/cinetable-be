@@ -1,11 +1,12 @@
-import { Invitation } from "@prisma/client";
+import { Invitation, Prisma } from "@prisma/client";
 import { Service } from "fastify-decorators";
 import httpErrors from "http-errors";
 import { InvitationRepository } from "@repositories/InvitationRepository";
 import { EmailSenderService } from "@services/EmailSenderService";
-import { InvitationView } from "@models/Invitation";
+import { InvitationView, InviteInfo, MyInvitation } from "@models/Invitation";
 import { requirePresident } from "@utils/membership";
-import { expiresIn, generateToken, TOKEN_TTL } from "@utils/tokens";
+import { getPrismaClient } from "@utils/prisma";
+import { expiresIn, generateToken, hashToken, TOKEN_TTL } from "@utils/tokens";
 import { cineforumInvitationTemplate } from "../templates/email/cineforumInvitationTemplate";
 
 export function toInvitationView(i: Invitation): InvitationView {
@@ -17,6 +18,9 @@ export function toInvitationView(i: Invitation): InvitationView {
         createdAt: i.createdAt.toISOString(),
     };
 }
+
+const NOT_ACTIVE = "L'invito non è più attivo";
+const INVALID = "Invito non valido o scaduto";
 
 @Service()
 export class InvitationService {
@@ -52,13 +56,16 @@ export class InvitationService {
         await this.findOpen(userId, cineforumId, id);
         const { token, hash } = generateToken();
         const renewed = await this.repository.renew(id, hash, expiresIn(TOKEN_TTL.INVITATION));
+        if (!renewed) throw new httpErrors.BadRequest(NOT_ACTIVE);
         await this.sendEmail(renewed, token, await this.repository.findEmailContext(cineforumId, userId));
         return toInvitationView(renewed);
     }
 
     async revoke(userId: number, cineforumId: number, id: number): Promise<InvitationView> {
         await this.findOpen(userId, cineforumId, id);
-        return toInvitationView(await this.repository.revoke(id));
+        const revoked = await this.repository.revoke(id);
+        if (!revoked) throw new httpErrors.BadRequest(NOT_ACTIVE);
+        return toInvitationView(revoked);
     }
 
     /** Invito PENDING o scaduto (ancora PENDING in DB) del cineforum, altrimenti 404/400. */
@@ -66,7 +73,58 @@ export class InvitationService {
         await requirePresident(userId, cineforumId);
         const invitation = await this.repository.findInCineforum(cineforumId, id);
         if (!invitation) throw new httpErrors.NotFound("Invito non trovato");
-        if (invitation.status !== "PENDING") throw new httpErrors.BadRequest("L'invito non è più attivo");
+        if (invitation.status !== "PENDING") throw new httpErrors.BadRequest(NOT_ACTIVE);
+    }
+
+    /** Invito PENDING e non scaduto per quel token, con i dati per mostrarlo; null se non valido. */
+    findByToken(token: string) {
+        return this.repository.findPendingByTokenHash(hashToken(token));
+    }
+
+    async info(token: string): Promise<InviteInfo> {
+        const invitation = await this.findByToken(token);
+        if (!invitation) throw new httpErrors.NotFound(INVALID);
+        return {
+            email: invitation.email,
+            cineforumName: invitation.cineforum.name,
+            invitedBy: invitation.invitedBy.username,
+            userExists: await this.repository.userExists(invitation.email),
+        };
+    }
+
+    /** Membro MEMBER + invito ACCEPTED, nella transazione del chiamante. Fallisce se l'invito non è più valido. */
+    async acceptInTx(tx: Prisma.TransactionClient, invitation: Invitation, userId: number): Promise<void> {
+        if (!(await this.repository.markAccepted(tx, invitation.id))) throw new httpErrors.NotFound(INVALID);
+        await tx.membership.upsert({
+            where: { userId_cineforumId: { userId, cineforumId: invitation.cineforumId } },
+            create: { userId, cineforumId: invitation.cineforumId, role: "MEMBER" },
+            update: {},
+        });
+    }
+
+    async mine(userId: number): Promise<MyInvitation[]> {
+        const rows = await this.repository.findPendingForEmail(await this.repository.findUserEmail(userId));
+        return rows.map(i => ({
+            id: i.id,
+            cineforumId: i.cineforumId,
+            cineforumName: i.cineforum.name,
+            invitedBy: i.invitedBy.username,
+            expiresAt: i.expiresAt.toISOString(),
+        }));
+    }
+
+    async accept(userId: number, id: number): Promise<{ cineforumId: number }> {
+        const email = await this.repository.findUserEmail(userId);
+        return getPrismaClient().$transaction(async tx => {
+            const invitation = await this.repository.findPendingFor(id, email, tx);
+            if (!invitation) throw new httpErrors.NotFound(INVALID);
+            await this.acceptInTx(tx, invitation, userId);
+            return { cineforumId: invitation.cineforumId };
+        });
+    }
+
+    async decline(userId: number, id: number): Promise<void> {
+        if (!(await this.repository.decline(id, await this.repository.findUserEmail(userId)))) throw new httpErrors.NotFound(INVALID);
     }
 
     private sendEmail(invitation: Invitation, token: string, ctx: { cineforumName: string; inviterUsername: string }) {

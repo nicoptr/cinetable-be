@@ -59,7 +59,7 @@ test("email o username duplicati → 409", async () => {
     assert.equal(u.statusCode, 409);
 });
 
-test("registrazione con inviteToken → 400 finché gli inviti non esistono", async () => {
+test("registrazione con inviteToken vuoto o sconosciuto → 400, nessun utente creato", async () => {
     const res = await register({ email: "inv@x.it", username: "inv", password: "password1", inviteToken: "abc" });
     assert.equal(res.statusCode, 400);
     assert.equal(res.json().message, "Invito non valido o scaduto");

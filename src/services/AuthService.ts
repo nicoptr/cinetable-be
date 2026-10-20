@@ -3,11 +3,12 @@ import httpErrors from "http-errors";
 import { UserRepository } from "@repositories/UserRepository";
 import { UserService } from "@services/UserService";
 import { AuthTokenRepository } from "@repositories/AuthTokenRepository";
+import { InvitationService } from "@services/InvitationService";
 import { EmailSenderService } from "@services/EmailSenderService";
 import { LoginDTO, RegisterDTO } from "@models/Auth";
 import { comparePasswords, encryptPassword, encryptPasswordSync } from "@utils/crypto";
 import { expiresIn, generateToken, hashToken, TOKEN_TTL } from "@utils/tokens";
-import { isUniqueViolation } from "@utils/prisma";
+import { getPrismaClient, isUniqueViolation } from "@utils/prisma";
 import { verifyEmailTemplate } from "../templates/email/verifyEmailTemplate";
 import { resetPasswordTemplate } from "../templates/email/resetPasswordTemplate";
 
@@ -21,11 +22,11 @@ export class AuthService {
         private readonly userService: UserService,
         private readonly authTokenRepository: AuthTokenRepository,
         private readonly email: EmailSenderService,
+        private readonly invitations: InvitationService,
     ) {}
 
     async register({ email, username, password, inviteToken }: RegisterDTO) {
-        // gli inviti arrivano con il Task 6; fino ad allora un inviteToken non va ignorato
-        if (inviteToken !== undefined) throw new httpErrors.BadRequest("Invito non valido o scaduto");
+        if (inviteToken !== undefined) return this.registerWithInvite({ email, username, password }, inviteToken);
         let user;
         const { token, hash } = generateToken();
         try {
@@ -37,6 +38,24 @@ export class AuthService {
         }
         await this.sendVerification(user, token);
         return user;
+    }
+
+    /** Utente già verificato (il link d'invito prova la casella) e membro nella stessa transazione. */
+    private async registerWithInvite(data: { email: string; username: string; password: string }, inviteToken: string) {
+        const invitation = await this.invitations.findByToken(inviteToken);
+        if (!invitation) throw new httpErrors.BadRequest("Invito non valido o scaduto");
+        if (invitation.email !== data.email) throw new httpErrors.BadRequest("Questo invito è per un altro indirizzo email");
+        const password = await encryptPassword(data.password);
+        try {
+            return await getPrismaClient().$transaction(async tx => {
+                const user = await tx.user.create({ data: { ...data, password, emailVerifiedAt: new Date() } });
+                await this.invitations.acceptInTx(tx, invitation, user.id);
+                return user;
+            });
+        } catch (e) {
+            if (isUniqueViolation(e)) throw new httpErrors.Conflict("Email o username già in uso");
+            throw e;
+        }
     }
 
     async verifyEmail(token: string) {

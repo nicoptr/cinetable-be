@@ -38,7 +38,7 @@ export class AuthController {
     @POST("/register", {
         schema: {
             operationId: "register",
-            summary: "Self-registration; sends the verification email",
+            summary: "Self-registration; sends the verification email (or logs in when registering from an invite)",
             body: RegisterInputSchema,
             response: { 201: PublicUserSchema },
         },
@@ -46,6 +46,7 @@ export class AuthController {
     })
     async register(req: FastifyRequest<{ Body: RegisterDTO }>, reply: FastifyReply) {
         const user = await this.authService.register(req.body);
+        if (user.emailVerifiedAt) await setSessionCookie(reply, user); // registrazione da invito: già verificato
         reply.status(201).send(this.userService.toPublic(user));
     }
 

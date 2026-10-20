@@ -1,4 +1,4 @@
-import { Invitation } from "@prisma/client";
+import { Invitation, Prisma } from "@prisma/client";
 import { Service } from "fastify-decorators";
 import { getPrismaClient } from "@utils/prisma";
 
@@ -47,11 +47,55 @@ export class InvitationRepository {
         return { cineforumName: cineforum.name, inviterUsername: inviter.username };
     }
 
-    renew(id: number, tokenHash: string, expiresAt: Date): Promise<Invitation> {
-        return this.db.invitation.update({ where: { id }, data: { tokenHash, expiresAt } });
+    /** Aggiornamento condizionato a PENDING: null se nel frattempo l'invito è cambiato di stato. */
+    async renew(id: number, tokenHash: string, expiresAt: Date): Promise<Invitation | null> {
+        const { count } = await this.db.invitation.updateMany({ where: { id, status: "PENDING" }, data: { tokenHash, expiresAt } });
+        return count === 1 ? this.db.invitation.findUniqueOrThrow({ where: { id } }) : null;
     }
 
-    revoke(id: number): Promise<Invitation> {
-        return this.db.invitation.update({ where: { id }, data: { status: "REVOKED" } });
+    async revoke(id: number): Promise<Invitation | null> {
+        const { count } = await this.db.invitation.updateMany({ where: { id, status: "PENDING" }, data: { status: "REVOKED" } });
+        return count === 1 ? this.db.invitation.findUniqueOrThrow({ where: { id } }) : null;
+    }
+
+    findPendingByTokenHash(tokenHash: string) {
+        return this.db.invitation.findFirst({
+            where: { tokenHash, status: "PENDING", expiresAt: { gt: new Date() } },
+            include: { cineforum: { select: { name: true } }, invitedBy: { select: { username: true } } },
+        });
+    }
+
+    async userExists(email: string): Promise<boolean> {
+        return (await this.db.user.count({ where: { email } })) > 0;
+    }
+
+    async findUserEmail(userId: number): Promise<string> {
+        return (await this.db.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } })).email;
+    }
+
+    findPendingForEmail(email: string) {
+        return this.db.invitation.findMany({
+            where: { email, status: "PENDING", expiresAt: { gt: new Date() } },
+            include: { cineforum: { select: { name: true } }, invitedBy: { select: { username: true } } },
+            orderBy: { id: "desc" },
+        });
+    }
+
+    /** Invito PENDING, non scaduto e intestato a `email`. */
+    findPendingFor(id: number, email: string, db: Prisma.TransactionClient = this.db): Promise<Invitation | null> {
+        return db.invitation.findFirst({ where: { id, email, status: "PENDING", expiresAt: { gt: new Date() } } });
+    }
+
+    /** true se l'invito era ancora PENDING e non scaduto (e ora è ACCEPTED). */
+    async markAccepted(db: Prisma.TransactionClient, id: number): Promise<boolean> {
+        const { count } = await db.invitation.updateMany({ where: { id, status: "PENDING", expiresAt: { gt: new Date() } }, data: { status: "ACCEPTED" } });
+        return count === 1;
+    }
+
+    async decline(id: number, email: string): Promise<boolean> {
+        const { count } = await this.db.invitation.updateMany({
+            where: { id, email, status: "PENDING", expiresAt: { gt: new Date() } }, data: { status: "DECLINED" },
+        });
+        return count === 1;
     }
 }

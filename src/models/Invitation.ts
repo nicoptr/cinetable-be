@@ -13,3 +13,20 @@ export const InvitationViewSchema = z.object({
     createdAt: z.string(),
 });
 export type InvitationView = z.infer<typeof InvitationViewSchema>;
+
+export const InviteInfoSchema = z.object({
+    email: z.string(),
+    cineforumName: z.string(),
+    invitedBy: z.string(),
+    userExists: z.boolean(),
+});
+export type InviteInfo = z.infer<typeof InviteInfoSchema>;
+
+export const MyInvitationSchema = z.object({
+    id: z.number(),
+    cineforumId: z.number(),
+    cineforumName: z.string(),
+    invitedBy: z.string(),
+    expiresAt: z.string(),
+});
+export type MyInvitation = z.infer<typeof MyInvitationSchema>;
