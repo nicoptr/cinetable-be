@@ -171,3 +171,31 @@ test("launch due volte → 400; elenco rassegne", async () => {
     assert.equal(list.statusCode, 200);
     assert.deepEqual(Object.keys(list.json()[0]).sort(), ["candidaturesCloseAt", "finalNightAt", "id", "name", "status"]);
 });
+
+test("DELETE: solo bozze, solo il presidente", async () => {
+    const { presi, members, cf, body } = await setup("h");
+    const del = (id: number, who: U) => app.inject({ method: "DELETE", url: `${URL}/cineforums/${cf}/seasons/${id}`, cookies: who.cookies });
+    const draft = (await create(cf, presi, body)).json().id;
+    assert.equal((await del(draft, members[0]!)).statusCode, 403);
+    assert.equal((await del(draft, presi)).statusCode, 204);
+    assert.equal((await get(cf, draft, presi)).statusCode, 404);
+    assert.equal((await del(draft, presi)).statusCode, 404);
+
+    const started = (await create(cf, presi, body)).json().id;
+    assert.equal((await launch(cf, started, presi)).statusCode, 200);
+    const no = await del(started, presi);
+    assert.equal(no.statusCode, 400);
+    assert.equal(no.json().message, "Si può eliminare solo una bozza");
+    assert.equal((await get(cf, started, presi)).statusCode, 200);
+});
+
+test("date nelle risposte: stringhe ISO", async () => {
+    const { presi, cf, body } = await setup("i");
+    const night = days(9);
+    const view = (await create(cf, presi, { ...body, finalNightAt: night })).json();
+    assert.equal(view.candidaturesCloseAt, body.candidaturesCloseAt);
+    assert.equal(view.finalNightAt, night);
+    const list = (await app.inject({ method: "GET", url: `${URL}/cineforums/${cf}/seasons`, cookies: presi.cookies })).json();
+    assert.equal(list[0].candidaturesCloseAt, view.candidaturesCloseAt);
+    assert.equal(list[0].finalNightAt, view.finalNightAt);
+});

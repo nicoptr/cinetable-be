@@ -75,7 +75,7 @@ export class CandidatureRepository {
     /** Un film svelato senza data o con la proiezione ancora da fare. */
     findPendingScreening(tx: Db, seasonId: number) {
         return tx.candidature.findFirst({
-            where: { seasonId, revealedAt: { not: null }, OR: [{ screeningAt: null }, { screeningAt: { gt: new Date() } }] },
+            where: { seasonId, status: "VALID", revealedAt: { not: null }, OR: [{ screeningAt: null }, { screeningAt: { gt: new Date() } }] },
             select: { id: true },
         });
     }
@@ -94,13 +94,29 @@ export class CandidatureRepository {
         return getPrismaClient().candidature.findUniqueOrThrow({ where: { id }, select: programSelect });
     }
 
-    /** Una candidatura non svelata o di un'altra rassegna non esiste: null. */
-    findRevealed(seasonId: number, id: number) {
-        return getPrismaClient().candidature.findFirst({ where: { id, seasonId, revealedAt: { not: null } }, select: { screeningAt: true, votingOpenedAt: true, participantId: true, movie: { select: { title: true } } } });
+    /** Per ordine di proiezione: un film non svelato o di un'altra rassegna non esiste, null. `id` resta interno. */
+    findRevealed(seasonId: number, order: number) {
+        return getPrismaClient().candidature.findFirst({
+            where: { seasonId, projectionOrder: order, revealedAt: { not: null } },
+            select: { id: true, screeningAt: true, votingOpenedAt: true, participantId: true, movie: { select: { title: true } } },
+        });
     }
 
     planScreening(id: number, d: { screeningAt: Date; location: string }) {
         return getPrismaClient().candidature.update({ where: { id }, data: d, select: programSelect });
+    }
+
+    /** Partecipante con il numero (0 o 1) di candidature valide. */
+    findParticipantProgress(tx: Db, seasonId: number, userId: number) {
+        return tx.participant.findUnique({
+            where: { seasonId_userId: { seasonId, userId } },
+            select: { id: true, _count: { select: { candidatures: { where: { status: "VALID" } } } } },
+        });
+    }
+
+    /** Le sue candidature DUPLICATE/WITHDRAWN se ne vanno in cascata. */
+    deleteParticipant(tx: Db, id: number) {
+        return tx.participant.delete({ where: { id } });
     }
 
     participantEmails(seasonId: number) {

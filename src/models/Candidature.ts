@@ -32,12 +32,12 @@ export const programSelect = {
 } satisfies Prisma.CandidatureSelect;
 export type ProgramRow = Prisma.CandidatureGetPayload<{ select: typeof programSelect }>;
 
+/** `order` (casuale) è la chiave esterna di un film svelato: l'id della candidatura non esce mai. */
 export const ProgramItemSchema = z.object({
-    candidatureId: z.number(),
     order: z.number(),
     movie: MovieViewSchema,
     category: z.object({ id: z.number(), name: z.string() }).nullable(),
-    screeningAt: z.date().nullable(),
+    screeningAt: z.string().nullable(),
     location: z.string().nullable(),
     votingOpen: z.boolean(),
     isMine: z.boolean(),
@@ -53,11 +53,10 @@ export type Viewer = { participantId: number | null; isPresident: boolean };
  */
 export function toProgramItem(c: ProgramRow, viewer: Viewer): ProgramItem {
     return {
-        candidatureId: c.id,
         order: c.projectionOrder!,
         movie: toMovieView(c.movie),
         category: c.participant.category,
-        screeningAt: c.screeningAt,
+        screeningAt: c.screeningAt?.toISOString() ?? null,
         location: c.location,
         votingOpen: c.votingOpenedAt != null,
         isMine: c.participantId === viewer.participantId,

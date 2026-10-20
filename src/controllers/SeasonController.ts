@@ -1,10 +1,10 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { Controller, GET, PATCH, POST } from "fastify-decorators";
+import { Controller, DELETE, GET, PATCH, POST } from "fastify-decorators";
 import { z } from "zod";
 import { SeasonService } from "@services/SeasonService";
 import { ResultsService } from "@services/ResultsService";
 import { SummaryService } from "@services/SummaryService";
-import { AwardResultSchema, SeasonResultsSchema, SeasonRecapSchema, SeasonDTO, SeasonInputSchema, SeasonSummarySchema, SeasonUpdateDTO, SeasonUpdateSchema, SeasonViewSchema } from "@models/Season";
+import { AwardResultSchema, SeasonResultsSchema, SeasonDTO, SeasonInputSchema, SeasonListItemSchema, SeasonSummarySchema, SeasonUpdateDTO, SeasonUpdateSchema, SeasonViewSchema } from "@models/Season";
 import { Authenticate } from "@middleware/Authenticate";
 import { parseId } from "@utils/params";
 
@@ -19,7 +19,7 @@ export class SeasonController {
     constructor(private readonly service: SeasonService, private readonly results: ResultsService, private readonly summary: SummaryService) {}
 
     @GET("/", {
-        schema: { operationId: "listSeasons", summary: "List seasons (members)", response: { 200: z.array(SeasonSummarySchema) } },
+        schema: { operationId: "listSeasons", summary: "List seasons (members)", response: { 200: z.array(SeasonListItemSchema) } },
         onRequest: [Authenticate()],
     })
     async list(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
@@ -50,6 +50,15 @@ export class SeasonController {
         reply.status(200).send(await this.service.update(req.user.id, parseId(req.params.id), seasonId(req.params), req.body));
     }
 
+    @DELETE("/:seasonId", {
+        schema: { operationId: "deleteSeason", summary: "Delete a draft season (president only)" },
+        onRequest: [Authenticate()],
+    })
+    async delete(req: FastifyRequest<{ Params: Item }>, reply: FastifyReply) {
+        await this.service.delete(req.user.id, parseId(req.params.id), seasonId(req.params));
+        reply.status(204).send();
+    }
+
     @POST("/:seasonId/launch", {
         schema: { operationId: "launchSeason", summary: "Draw categories and open the season (president only)", response: { 200: SeasonViewSchema } },
         onRequest: [Authenticate()],
@@ -76,7 +85,7 @@ export class SeasonController {
     }
 
     @GET("/:seasonId/summary", {
-        schema: { operationId: "getSeasonSummary", summary: "Permanent recap of a concluded season (members)", response: { 200: SeasonRecapSchema } },
+        schema: { operationId: "getSeasonSummary", summary: "Permanent recap of a concluded season (members)", response: { 200: SeasonSummarySchema } },
         onRequest: [Authenticate()],
     })
     async getSummary(req: FastifyRequest<{ Params: Item }>, reply: FastifyReply) {

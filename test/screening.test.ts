@@ -51,14 +51,18 @@ async function setup(tag: string, candidate = true) {
     TEST_OUTBOX.length = 0;
     const reveal = (who: U = presi) => app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: who.cookies });
     const season = (who: U) => app.inject({ method: "GET", url: base, cookies: who.cookies });
-    const plan = (candidatureId: number, payload: object, who: U = presi) =>
-        app.inject({ method: "PATCH", url: `${base}/candidatures/${candidatureId}/screening`, cookies: who.cookies, payload });
-    /** Chi ha proposto la candidatura (solo dal DB). */
-    const proposerOf = async (candidatureId: number) => {
-        const c = await db.candidature.findUniqueOrThrow({ where: { id: candidatureId }, include: { participant: true } });
+    const plan = (order: number | string, payload: object, who: U = presi) =>
+        app.inject({ method: "PATCH", url: `${base}/program/${order}/screening`, cookies: who.cookies, payload });
+    /** La riga dietro un ordine di proiezione (solo dal DB: l'id non esce mai). */
+    const rowOf = (order: number) => db.candidature.findFirstOrThrow({ where: { seasonId: id, projectionOrder: order }, include: { participant: true } });
+    /** Chi ha proposto il film (solo dal DB). */
+    const proposerOf = async (order: number) => {
+        const c = await rowOf(order);
         return users.find(u => u.id === c.participant.userId)!;
     };
-    return { presi, A, B, C, users, cf, id, base, put, closeNow, reveal, season, plan, proposerOf };
+    /** Proiezione appena avvenuta. */
+    const screened = async (order: number) => db.candidature.update({ where: { id: (await rowOf(order)).id }, data: { screeningAt: new Date(Date.now() - 1000) } });
+    return { presi, A, B, C, users, cf, id, base, put, closeNow, reveal, season, plan, rowOf, proposerOf, screened };
 }
 
 const usernameOf = async (u: U) => (await getPrismaClient().user.findUniqueOrThrow({ where: { id: u.id } })).username;
@@ -92,16 +96,17 @@ test("svelamento uno alla volta, ordine casuale stabile, proponente mai nel Prog
     assert.equal(item.order, 1);
     assert.equal(item.screeningAt, null);
     assert.equal(item.votingOpen, false);
-    assert.equal(item.isMine, (await s.proposerOf(item.candidatureId)) === s.presi);
+    assert.equal(item.isMine, (await s.proposerOf(item.order)) === s.presi);
+    assert.ok(!("candidatureId" in item));
     assert.equal(item.votesMissing, 3);
 
     // ordine fissato al primo svelamento: una permutazione di 1..4 sulle VALID
     const rows = await db.candidature.findMany({ where: { seasonId: s.id }, orderBy: { projectionOrder: "asc" } });
     assert.deepEqual(rows.map(r => r.projectionOrder), [1, 2, 3, 4]);
-    assert.equal(rows[0]!.id, item.candidatureId);
+    assert.equal(rows[0]!.revealedAt !== null, true);
     assert.equal((await db.season.findUniqueOrThrow({ where: { id: s.id } })).status, "SCREENING");
 
-    const proposer = await s.proposerOf(item.candidatureId);
+    const proposer = await s.proposerOf(item.order);
     const proposerName = await usernameOf(proposer);
     for (const viewer of s.users) {
         const view = (await s.season(viewer)).json();
@@ -122,19 +127,19 @@ test("svelamento uno alla volta, ordine casuale stabile, proponente mai nel Prog
     assert.equal(unplanned.statusCode, 400);
     assert.equal(unplanned.json().message, "Proietta il film in programma prima di svelare il prossimo");
 
-    const planned = await s.plan(item.candidatureId, { screeningAt: days(2), location: "Sala <1>" });
+    const planned = await s.plan(item.order, { screeningAt: days(2), location: "Sala <1>" });
     assert.equal(planned.statusCode, 200);
     assert.equal(planned.json().location, "Sala <1>");
-    assert.equal(planned.json().candidatureId, item.candidatureId);
+    assert.equal(planned.json().order, item.order);
     assert.equal((await s.reveal()).json().message, "Proietta il film in programma prima di svelare il prossimo");
 
-    await db.candidature.update({ where: { id: item.candidatureId }, data: { screeningAt: new Date(Date.now() - 1000) } });
+    await s.screened(item.order);
     const second = await s.reveal();
     assert.equal(second.statusCode, 200);
     assert.equal(second.json().order, 2);
-    assert.equal(second.json().candidatureId, rows[1]!.id);
+    assert.equal(second.json().movie.tmdbId, rows[1]!.tmdbId);
     const program = (await s.season(s.A)).json().program;
-    assert.deepEqual(program.map((p: { candidatureId: number }) => p.candidatureId), [rows[0]!.id, rows[1]!.id]);
+    assert.deepEqual(program.map((p: { order: number }) => p.order), [1, 2]);
 
     // svela il resto, poi niente più da svelare
     for (const row of rows.slice(1)) {
@@ -155,28 +160,26 @@ test("due reveal-next simultanei svelano un solo film", async () => {
     assert.equal(await getPrismaClient().candidature.count({ where: { seasonId: s.id, revealedAt: { not: null } } }), 1);
 });
 
-test("screening su candidatura non svelata → 404", async () => {
+test("screening su film non svelato → 404", async () => {
     const s = await setup("d");
-    const other = await setup("d2");
     const item = (await s.reveal()).json();
     const hidden = await getPrismaClient().candidature.findFirstOrThrow({ where: { seasonId: s.id, revealedAt: null } });
-    const notFound = await s.plan(hidden.id, { screeningAt: days(1), location: "Sala" });
+    const notFound = await s.plan(hidden.projectionOrder!, { screeningAt: days(1), location: "Sala" });
     assert.equal(notFound.statusCode, 404);
-    assert.equal((await s.plan(999999, { screeningAt: days(1), location: "Sala" })).json().message, notFound.json().message);
-    // candidatura svelata ma di un'altra rassegna
-    const foreign = (await other.reveal()).json();
-    assert.equal((await s.plan(foreign.candidatureId, { screeningAt: days(1), location: "Sala" })).statusCode, 404);
+    for (const order of [999999, "abc"]) {
+        const r = await s.plan(order, { screeningAt: days(1), location: "Sala" });
+        assert.equal(r.statusCode, 404);
+        assert.equal(r.body, notFound.body);
+    }
 
-    assert.equal((await s.plan(item.candidatureId, { screeningAt: days(1), location: "Sala" }, s.A)).statusCode, 403);
-    const past = await s.plan(item.candidatureId, { screeningAt: days(-1), location: "Sala" });
-    assert.equal(past.statusCode, 400);
+    assert.equal((await s.plan(item.order, { screeningAt: days(1), location: "Sala" }, s.A)).statusCode, 403);
     for (const payload of [{ screeningAt: days(1) }, { screeningAt: days(1), location: "" }, { screeningAt: days(1), location: "x".repeat(201) }, { screeningAt: days(1), location: "Sala", x: 1 }]) {
-        assert.equal((await s.plan(item.candidatureId, payload)).statusCode, 400);
+        assert.equal((await s.plan(item.order, payload)).statusCode, 400);
     }
     assert.equal(TEST_OUTBOX.length, 0);
 
     const when = new Date("2030-03-15T19:30:00Z"); // 20:30 a Roma
-    assert.equal((await s.plan(item.candidatureId, { screeningAt: when.toISOString(), location: "Sala <1>" })).statusCode, 200);
+    assert.equal((await s.plan(item.order, { screeningAt: when.toISOString(), location: "Sala <1>" })).statusCode, 200);
     assert.equal(TEST_OUTBOX.length, 4);
     for (const m of TEST_OUTBOX) {
         assert.equal(m.subject, "Prossima proiezione");
@@ -190,15 +193,16 @@ test("screening: proiezione già avvenuta → 400; fuori da SCREENING → 400, n
     const s = await setup("f");
     const db = getPrismaClient();
     const item = (await s.reveal()).json();
-    await db.candidature.update({ where: { id: item.candidatureId }, data: { screeningAt: new Date(Date.now() - 1000) } });
-    const done = await s.plan(item.candidatureId, { screeningAt: days(1), location: "Sala" });
+    const cid = (await s.rowOf(item.order)).id;
+    await s.screened(item.order);
+    const done = await s.plan(item.order, { screeningAt: days(1), location: "Sala" });
     assert.equal(done.statusCode, 400);
     assert.equal(done.json().message, "Proiezione già avvenuta");
 
-    await db.candidature.update({ where: { id: item.candidatureId }, data: { screeningAt: null } });
+    await db.candidature.update({ where: { id: cid }, data: { screeningAt: null } });
     for (const status of ["FINAL", "DONE"] as const) {
         await db.season.update({ where: { id: s.id }, data: { status } });
-        const res = await s.plan(item.candidatureId, { screeningAt: days(1), location: "Sala" });
+        const res = await s.plan(item.order, { screeningAt: days(1), location: "Sala" });
         assert.equal(res.statusCode, 400);
         assert.equal(res.json().message, "Non modificabile in questa fase");
     }
@@ -208,11 +212,40 @@ test("screening: proiezione già avvenuta → 400; fuori da SCREENING → 400, n
 test("isMine true solo per il proponente", async () => {
     const s = await setup("e");
     const item = (await s.reveal()).json();
-    const proposer = await s.proposerOf(item.candidatureId);
+    const proposer = await s.proposerOf(item.order);
     for (const viewer of s.users) {
         const p = (await s.season(viewer)).json().program[0];
         assert.equal(p.isMine, viewer === proposer);
         assert.equal(p.myVoteSubmitted, false);
         assert.equal("votesMissing" in p, viewer === s.presi);
+    }
+});
+
+test("screening: data passata ammessa solo se il film non ne ha ancora una", async () => {
+    const s = await setup("g");
+    const item = (await s.reveal()).json();
+    // proiezione già avvenuta da registrare: ammessa, e sblocca reveal-next
+    const recorded = await s.plan(item.order, { screeningAt: days(-1), location: "Sala" });
+    assert.equal(recorded.statusCode, 200);
+    assert.equal(new Date(recorded.json().screeningAt).getTime() < Date.now(), true);
+    assert.equal((await s.reveal()).statusCode, 200);
+
+    // data futura già fissata: non si sposta nel passato
+    const second = 2;
+    assert.equal((await s.plan(second, { screeningAt: days(1), location: "Sala" })).statusCode, 200);
+    const past = await s.plan(second, { screeningAt: days(-1), location: "Sala" });
+    assert.equal(past.statusCode, 400);
+    assert.equal(past.json().message, "La proiezione non può essere nel passato");
+});
+
+test("PATCH della scadenza e primo reveal-next simultanei: mai entrambi a buon fine", async () => {
+    for (const tag of ["h1", "h2", "h3"]) {
+        const s = await setup(tag);
+        const [r, p] = await Promise.all([
+            s.reveal(),
+            app.inject({ method: "PATCH", url: s.base, cookies: s.presi.cookies, payload: { candidaturesCloseAt: days(3) } }),
+        ]);
+        assert.notDeepEqual([r.statusCode, p.statusCode], [200, 200]);
+        assert.ok([r.statusCode, p.statusCode].includes(200));
     }
 });

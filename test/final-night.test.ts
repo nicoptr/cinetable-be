@@ -54,16 +54,16 @@ async function setup(tag: string, reveal = 4) {
         await app.inject({ method: "PUT", url: `${base}/candidature`, cookies: u.cookies, payload: { tmdbId: MOVIES[i]!.tmdbId } });
     }
     await db.season.update({ where: { id }, data: { candidaturesCloseAt: new Date(Date.now() - 1000) } });
-    const films: { cid: number; proposer: U }[] = [];
+    const films: { cid: number; order: number; proposer: U }[] = [];
     for (let i = 0; i < reveal; i++) {
-        const cid: number = (await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies })).json().candidatureId;
-        await db.candidature.update({ where: { id: cid }, data: { screeningAt: new Date(Date.now() - 1000) } });
-        await app.inject({ method: "POST", url: `${base}/candidatures/${cid}/open-voting`, cookies: presi.cookies });
-        const row = await db.candidature.findUniqueOrThrow({ where: { id: cid }, include: { participant: true } });
-        films.push({ cid, proposer: users.find(u => u.id === row.participant.userId)! });
+        const order: number = (await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies })).json().order;
+        const row = await db.candidature.findFirstOrThrow({ where: { seasonId: id, projectionOrder: order }, include: { participant: true } });
+        await db.candidature.update({ where: { id: row.id }, data: { screeningAt: new Date(Date.now() - 1000) } });
+        await app.inject({ method: "POST", url: `${base}/program/${order}/open-voting`, cookies: presi.cookies });
+        films.push({ cid: row.id, order, proposer: users.find(u => u.id === row.participant.userId)! });
     }
-    const vote = (who: U, cid: number, r: number, t: number) => app.inject({
-        method: "POST", url: `${base}/candidatures/${cid}/votes`, cookies: who.cookies,
+    const vote = (who: U, order: number, r: number, t: number) => app.inject({
+        method: "POST", url: `${base}/program/${order}/votes`, cookies: who.cookies,
         payload: { votes: [{ awardId: regia!.id, value: r }, { awardId: trama!.id, value: t }] },
     });
     if (reveal === 4) {
@@ -71,7 +71,7 @@ async function setup(tag: string, reveal = 4) {
             for (const v of users.filter(u => u !== f.proposer && !(u === C && f.proposer === presi))) {
                 const r = f.proposer === A ? (v === presi ? 91 : 90) : 50;
                 const t = f.proposer === B || f.proposer === C ? 80 : 40;
-                assert.equal((await vote(v, f.cid, r, t)).statusCode, 201);
+                assert.equal((await vote(v, f.order, r, t)).statusCode, 201);
             }
         }
     }
@@ -113,7 +113,7 @@ test("busta per busta: risultato visibile a tutti solo dopo l'apertura", async (
     // dopo la prima apertura il voto mancante non entra più
     const db = getPrismaClient();
     const count = await db.vote.count();
-    const late = await s.vote(s.C, s.film(s.presi).cid, 100, 100);
+    const late = await s.vote(s.C, s.film(s.presi).order, 100, 100);
     assert.equal(late.statusCode, 400);
     assert.equal(late.json().message, "Le votazioni sono chiuse");
     assert.equal(await db.vote.count(), count);
@@ -126,7 +126,7 @@ test("busta per busta: risultato visibile a tutti solo dopo l'apertura", async (
     assert.equal(end.allRevealed, true);
     assert.equal(end.proposers.length, 4);
     for (const f of s.films) {
-        const p = end.proposers.find((x: { candidatureId: number }) => x.candidatureId === f.cid);
+        const p = end.proposers.find((x: { order: number }) => x.order === f.order);
         assert.equal(p.proposer.userId, f.proposer.id);
     }
     assert.equal((await s.season(s.B)).json().status, "DONE");
@@ -145,6 +145,14 @@ test("apertura prima di aver svelato tutto → 400", async () => {
         assert.equal((await x.season(x.presi)).json().status, "SCREENING");
         assert.equal(await getPrismaClient().seasonAward.count({ where: { seasonId: x.id, revealedAt: { not: null } } }), 0);
     }
+    // tutto proiettato ma un film senza voto aperto: perderebbe ogni premio in silenzio
+    const u = await setup("b3", 4);
+    await getPrismaClient().candidature.update({ where: { id: u.films[2]!.cid }, data: { votingOpenedAt: null } });
+    const closed = await u.open(u.regia.id);
+    assert.equal(closed.statusCode, 400);
+    assert.equal(closed.json().message, "Apri il voto su tutti i film prima della serata finale");
+    assert.equal(await getPrismaClient().seasonAward.count({ where: { seasonId: u.id, revealedAt: { not: null } } }), 0);
+    assert.equal((await u.season(u.presi)).json().status, "SCREENING");
     // fuori da SCREENING/FINAL: non modificabile
     await getPrismaClient().season.update({ where: { id: s.id }, data: { status: "OPEN" } });
     assert.equal((await s.open(s.regia.id)).json().message, "Non modificabile in questa fase");

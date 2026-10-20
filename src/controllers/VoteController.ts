@@ -7,11 +7,11 @@ import { MyVoteSchema, VoteDTO, VoteInputSchema } from "@models/Vote";
 import { Authenticate } from "@middleware/Authenticate";
 import { parseId } from "@utils/params";
 
-type Params = { id: string; seasonId: string; candidatureId: string };
-const ids = (p: Params) => [parseId(p.id), parseId(p.seasonId, "Rassegna non trovata"), parseId(p.candidatureId, "Film non trovato")] as const;
+type Params = { id: string; seasonId: string; order: string };
+const ids = (p: Params) => [parseId(p.id), parseId(p.seasonId, "Rassegna non trovata"), parseId(p.order, "Film non trovato")] as const;
 
 @Controller({
-    route: "/cineforums/:id/seasons/:seasonId/candidatures/:candidatureId",
+    route: "/cineforums/:id/seasons/:seasonId/program/:order",
     tags: [{ name: "Votes", description: "Immutable votes on screened movies" }],
 })
 export class VoteController {

@@ -2,8 +2,9 @@ import { Membership, Participant, Season } from "@prisma/client";
 import { Service } from "fastify-decorators";
 import httpErrors from "http-errors";
 import { SeasonRepository, SeasonRow } from "@repositories/SeasonRepository";
+import { CandidatureRepository } from "@repositories/CandidatureRepository";
 import { EmailSenderService } from "@services/EmailSenderService";
-import { SeasonDTO, SeasonUpdateDTO, SeasonView } from "@models/Season";
+import { SeasonDTO, SeasonListItem, SeasonUpdateDTO, SeasonView } from "@models/Season";
 import { toProgramItem } from "@models/Candidature";
 import { requireMember, requirePresident } from "@utils/membership";
 import { shuffle } from "@utils/random";
@@ -19,11 +20,16 @@ const EDITABLE: Record<Season["status"], string[] | null> = {
     DONE: [],
 };
 
+function assertEditable(status: Season["status"], data: SeasonUpdateDTO) {
+    const allowed = EDITABLE[status];
+    if (allowed && Object.keys(data).some(k => !allowed.includes(k))) throw new httpErrors.BadRequest(NOT_EDITABLE);
+}
+
 type Access = { season: Season; membership: Membership; participant: Participant | null };
 
 @Service()
 export class SeasonService {
-    constructor(private readonly repo: SeasonRepository, private readonly email: EmailSenderService) {}
+    constructor(private readonly repo: SeasonRepository, private readonly candidatures: CandidatureRepository, private readonly email: EmailSenderService) {}
 
     /** Non membro, rassegna inesistente o di un altro cineforum: sempre 404. */
     async requireSeason(userId: number, cineforumId: number, seasonId: number): Promise<Access> {
@@ -40,9 +46,10 @@ export class SeasonService {
         return access as Access & { participant: Participant };
     }
 
-    async list(userId: number, cineforumId: number) {
+    async list(userId: number, cineforumId: number): Promise<SeasonListItem[]> {
         await requireMember(userId, cineforumId);
-        return this.repo.list(cineforumId);
+        const rows = await this.repo.list(cineforumId);
+        return rows.map(s => ({ ...s, candidaturesCloseAt: s.candidaturesCloseAt.toISOString(), finalNightAt: s.finalNightAt?.toISOString() ?? null }));
     }
 
     async get(userId: number, cineforumId: number, seasonId: number): Promise<SeasonView> {
@@ -60,8 +67,7 @@ export class SeasonService {
     async update(userId: number, cineforumId: number, seasonId: number, data: SeasonUpdateDTO): Promise<SeasonView> {
         await requirePresident(userId, cineforumId);
         const { season, membership } = await this.requireSeason(userId, cineforumId, seasonId);
-        const allowed = EDITABLE[season.status];
-        if (allowed && Object.keys(data).some(k => !allowed.includes(k))) throw new httpErrors.BadRequest(NOT_EDITABLE);
+        assertEditable(season.status, data);
 
         const current = await this.repo.findFull(season.id);
         await this.validate(cineforumId, {
@@ -73,8 +79,19 @@ export class SeasonService {
             participantUserIds: current.participants.map(p => p.userId),
             ...data,
         }, data);
-        await this.repo.update(season.id, data);
+        await this.candidatures.transaction(async tx => {
+            // stesso lock di reveal-next: lo stato può essere cambiato nel frattempo
+            const { status } = await this.candidatures.lockSeason(tx, season.id);
+            assertEditable(status, data);
+            await this.repo.update(season.id, data, tx);
+        });
         return this.view(season.id, membership, await this.repo.findParticipant(season.id, userId));
+    }
+
+    async delete(userId: number, cineforumId: number, seasonId: number): Promise<void> {
+        await requirePresident(userId, cineforumId);
+        const { season } = await this.requireSeason(userId, cineforumId, seasonId);
+        if (!(await this.repo.deleteDraft(season.id))) throw new httpErrors.BadRequest("Si può eliminare solo una bozza");
     }
 
     async launch(userId: number, cineforumId: number, seasonId: number): Promise<SeasonView> {
@@ -111,7 +128,7 @@ export class SeasonService {
         const myCategory = participant?.categoryId ? s.categories.find(c => c.id === participant.categoryId) ?? null : null;
         return {
             id: s.id, name: s.name, description: s.description, status: s.status,
-            candidaturesCloseAt: s.candidaturesCloseAt, finalNightAt: s.finalNightAt,
+            candidaturesCloseAt: s.candidaturesCloseAt.toISOString(), finalNightAt: s.finalNightAt?.toISOString() ?? null,
             categories: s.categories,
             awards: s.awards.map(a => a.award),
             participants: s.participants.map(p => ({ userId: p.userId, username: p.user.username, avatarUrl: p.user.avatarUrl })),

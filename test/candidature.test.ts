@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { buildApp, resetDb, TEST_OUTBOX } from "./helpers";
 import { makeCineforum, makeUser, stubTmdb } from "./game-helpers";
 import { getPrismaClient } from "@utils/prisma";
+import { getInstanceByToken } from "fastify-decorators";
+import { TmdbClient } from "@services/TmdbClient";
 
 const URL = "/sub/api";
 const days = (n: number) => new Date(Date.now() + n * 86400000).toISOString();
@@ -12,6 +14,7 @@ const MOVIES = [
     { tmdbId: 1091, title: "La cosa <1982>", originalTitle: "The Thing", year: 1982, posterPath: "/thing.jpg" },
     { tmdbId: 550, title: "Fight Club", originalTitle: "Fight Club", year: 1999, posterPath: null },
     { tmdbId: 603, title: "Matrix", originalTitle: "The Matrix", year: 1999, posterPath: "/matrix.jpg" },
+    { tmdbId: 680, title: "Pulp Fiction", originalTitle: "Pulp Fiction", year: 1994, posterPath: null },
 ];
 
 before(async () => {
@@ -207,4 +210,59 @@ test("la vista della rassegna non rivela film altrui", async () => {
     const raw = (await season(presi)).body;
     assert.equal(raw.includes("1091"), false);
     assert.equal(raw.includes("La cosa"), false);
+});
+
+test("film già in cache: niente TMDB", async () => {
+    const { A, put } = await setup("cache");
+    assert.equal((await put(A, 1091)).statusCode, 200); // ora è nella tabella Movie
+    const client = getInstanceByToken<TmdbClient>(TmdbClient);
+    client.getMovie = async () => { throw new Error("TMDB non va chiamato"); };
+    try {
+        assert.notEqual((await put(A, 680)).statusCode, 200); // non in cache: passa da TMDB, che qui fallisce
+        const res = await put(A, 1091);
+        assert.equal(res.statusCode, 200);
+        assert.equal(res.json().status, "VALID");
+        assert.equal(res.json().movie.posterUrl, "https://image.tmdb.org/t/p/w500/thing.jpg");
+    } finally {
+        stubTmdb(MOVIES);
+    }
+});
+
+test("rimozione di chi non ha un film valido sblocca lo svelamento", async () => {
+    const { presi, A, B, C, base, put, progress, id } = await setup("rm");
+    const db = getPrismaClient();
+    const remove = (who: U, target: U) => app.inject({ method: "DELETE", url: `${base}/participants/${target.id}`, cookies: who.cookies });
+    assert.equal((await put(presi, 1091)).json().status, "VALID");
+    assert.equal((await put(A, 550)).json().status, "VALID");
+    // B e C sullo stesso film: entrambe DUPLICATE; B ne sceglie un altro, C sparisce
+    assert.equal((await put(B, 603)).json().status, "VALID");
+    assert.equal((await put(C, 603)).json().status, "DUPLICATE");
+    assert.equal((await put(B, 680)).json().status, "VALID");
+    await db.season.update({ where: { id }, data: { candidaturesCloseAt: new Date(Date.now() - 1000) } });
+    const reveal = () => app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies });
+    assert.equal((await reveal()).json().message, "Mancano ancora dei film: sposta la scadenza per chi deve candidare");
+
+    assert.equal((await remove(A, C)).statusCode, 403);
+    const valid = await remove(presi, A);
+    assert.equal(valid.statusCode, 400);
+    assert.equal(valid.json().message, "Puoi rimuovere solo chi non ha ancora un film valido");
+    assert.equal((await remove(presi, { ...C, id: 999999 })).statusCode, 404);
+
+    const ok = await remove(presi, C);
+    assert.equal(ok.statusCode, 204);
+    assert.equal(await db.candidature.count({ where: { seasonId: id, participant: { userId: C.id } } }), 0);
+    assert.deepEqual((await progress(presi)).json(), { expected: 3, valid: 3, missing: [] });
+    assert.equal((await reveal()).statusCode, 200);
+    // fuori da OPEN non si rimuove più nessuno
+    assert.equal((await remove(presi, A)).json().message, "Puoi rimuovere solo chi non ha ancora un film valido");
+});
+
+test("rimozione: restano almeno 2 partecipanti", async () => {
+    const { presi, A, B, C, base } = await setup("rm2");
+    const remove = (target: U) => app.inject({ method: "DELETE", url: `${base}/participants/${target.id}`, cookies: presi.cookies });
+    assert.equal((await remove(C)).statusCode, 204);
+    assert.equal((await remove(B)).statusCode, 204);
+    const last = await remove(A);
+    assert.equal(last.statusCode, 400);
+    assert.equal(last.json().message, "Una rassegna ha almeno 2 partecipanti");
 });

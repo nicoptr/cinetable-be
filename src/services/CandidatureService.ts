@@ -34,10 +34,13 @@ export class CandidatureService {
         const { season, participant } = await this.seasons.requireParticipant(userId, cineforumId, seasonId);
         assertOpen(season);
         if (await this.repo.isBanned(season.id, tmdbId)) throw new httpErrors.BadRequest(BANNED);
-        // rete fuori dalla transazione
-        const movie = await this.tmdb.getMovie(tmdbId);
-        if (!movie) throw new httpErrors.BadRequest("Film non trovato");
-        await this.movies.upsert(movie);
+        // già in cache: niente TMDB; altrimenti rete fuori dalla transazione
+        let movie = await this.movies.find(tmdbId);
+        if (!movie) {
+            movie = await this.tmdb.getMovie(tmdbId);
+            if (!movie) throw new httpErrors.BadRequest("Film non trovato");
+            await this.movies.upsert(movie);
+        }
 
         const outcome = await this.repo.transaction(async tx => {
             const locked = await this.repo.lockSeason(tx, season.id);
@@ -106,20 +109,38 @@ export class CandidatureService {
     }
 
     /** Solo film svelati: gli altri sono indistinguibili da inesistenti. */
-    async planScreening(userId: number, cineforumId: number, seasonId: number, candidatureId: number, data: ScreeningDTO): Promise<ProgramItem> {
+    async planScreening(userId: number, cineforumId: number, seasonId: number, order: number, data: ScreeningDTO): Promise<ProgramItem> {
         await requirePresident(userId, cineforumId);
         const { season, participant } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
         if (season.status !== "SCREENING") throw new httpErrors.BadRequest("Non modificabile in questa fase");
-        const revealed = await this.repo.findRevealed(season.id, candidatureId);
+        const revealed = await this.repo.findRevealed(season.id, order);
         if (!revealed) throw new httpErrors.NotFound("Film non trovato");
         // una proiezione già fatta non torna nel futuro: bloccherebbe di nuovo reveal-next
         if (revealed.screeningAt && revealed.screeningAt <= new Date()) throw new httpErrors.BadRequest("Proiezione già avvenuta");
-        if (data.screeningAt < new Date()) throw new httpErrors.BadRequest("La proiezione non può essere nel passato");
+        // senza data si può registrare una proiezione già avvenuta; una data futura non si sposta nel passato
+        if (revealed.screeningAt && data.screeningAt < new Date()) throw new httpErrors.BadRequest("La proiezione non può essere nel passato");
 
-        const row = await this.repo.planScreening(candidatureId, data);
+        const row = await this.repo.planScreening(revealed.id, data);
         const html = screeningPlannedTemplate(row.movie.title, data.screeningAt, data.location);
         const recipients = await this.repo.participantEmails(season.id);
         await Promise.all(recipients.map(r => this.email.send(r.user.email, "Prossima proiezione", html)));
         return toProgramItem(row, { participantId: participant?.id ?? null, isPresident: true });
+    }
+
+    /**
+     * Sblocca una rassegna OPEN ferma su chi non avrà mai un film valido. Il presidente vede già
+     * questi nomi in `progress.missing`: non trapela nulla di nuovo.
+     */
+    async removeParticipant(userId: number, cineforumId: number, seasonId: number, targetUserId: number): Promise<void> {
+        await requirePresident(userId, cineforumId);
+        const { season } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
+        await this.repo.transaction(async tx => {
+            const { status } = await this.repo.lockSeason(tx, season.id);
+            const target = await this.repo.findParticipantProgress(tx, season.id, targetUserId);
+            if (!target) throw new httpErrors.NotFound("Partecipante non trovato");
+            if (status !== "OPEN" || target._count.candidatures > 0) throw new httpErrors.BadRequest("Puoi rimuovere solo chi non ha ancora un film valido");
+            if ((await this.repo.countParticipants(tx, season.id)) <= 2) throw new httpErrors.BadRequest("Una rassegna ha almeno 2 partecipanti");
+            await this.repo.deleteParticipant(tx, target.id);
+        });
     }
 }

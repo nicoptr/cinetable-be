@@ -20,15 +20,16 @@ export type SeasonUpdateDTO = z.infer<typeof SeasonUpdateSchema>;
 
 const categoryView = z.object({ id: z.number(), name: z.string(), description: z.string().nullable() });
 
-export const SeasonSummarySchema = z.object({
+export const SeasonListItemSchema = z.object({
     id: z.number(),
     name: z.string(),
     status: z.enum(["DRAFT", "OPEN", "SCREENING", "FINAL", "DONE"]),
-    candidaturesCloseAt: z.date(),
-    finalNightAt: z.date().nullable(),
+    candidaturesCloseAt: z.string(),
+    finalNightAt: z.string().nullable(),
 });
+export type SeasonListItem = z.infer<typeof SeasonListItemSchema>;
 
-export const SeasonViewSchema = SeasonSummarySchema.extend({
+export const SeasonViewSchema = SeasonListItemSchema.extend({
     description: z.string().nullable(),
     categories: z.array(categoryView),
     awards: z.array(z.object({ id: z.number(), name: z.string(), question: z.string() })),
@@ -66,12 +67,12 @@ export const SeasonResultsSchema = z.object({
     awards: z.array(AwardResultSchema),
     allRevealed: z.boolean(),
     /** Vuoto finché non sono aperte tutte le buste. */
-    proposers: z.array(z.object({ candidatureId: z.number(), movie: MovieViewSchema, proposer: proposerView })),
+    proposers: z.array(z.object({ order: z.number(), movie: MovieViewSchema, proposer: proposerView })),
 });
 export type SeasonResults = z.infer<typeof SeasonResultsSchema>;
 
 const personView = proposerView;
-export const SeasonRecapSchema = z.object({
+export const SeasonSummarySchema = z.object({
     season: z.object({
         id: z.number(), name: z.string(), description: z.string().nullable(),
         candidaturesCloseAt: z.string(), finalNightAt: z.string().nullable(),
@@ -94,4 +95,4 @@ export const SeasonRecapSchema = z.object({
     /** In ordine di apertura delle buste. */
     awards: z.array(AwardResultSchema),
 });
-export type SeasonRecap = z.infer<typeof SeasonRecapSchema>;
+export type SeasonSummary = z.infer<typeof SeasonSummarySchema>;

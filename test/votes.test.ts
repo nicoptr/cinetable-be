@@ -9,9 +9,9 @@ const days = (n: number) => new Date(Date.now() + n * 86400000).toISOString();
 let app: Awaited<ReturnType<typeof buildApp>>;
 
 const MOVIES = [
-    { tmdbId: 1091, title: "La cosa", originalTitle: "The Thing", year: 1982, posterPath: null },
-    { tmdbId: 550, title: "Fight Club", originalTitle: "Fight Club", year: 1999, posterPath: null },
-    { tmdbId: 603, title: "Matrix", originalTitle: "The Matrix", year: 1999, posterPath: null },
+    { tmdbId: 1091, title: "La <cosa>", originalTitle: "The Thing", year: 1982, posterPath: null },
+    { tmdbId: 550, title: "Fight <Club>", originalTitle: "Fight Club", year: 1999, posterPath: null },
+    { tmdbId: 603, title: "<Matrix>", originalTitle: "The Matrix", year: 1999, posterPath: null },
     { tmdbId: 680, title: "Pulp <Fiction>", originalTitle: "Pulp Fiction", year: 1994, posterPath: null },
 ];
 
@@ -51,12 +51,14 @@ async function setup(tag: string) {
     }
     await db.season.update({ where: { id }, data: { candidaturesCloseAt: new Date(Date.now() - 1000) } });
     const item = (await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies })).json();
-    const cid: number = item.candidatureId;
+    const order: number = item.order;
+    // l'id resta interno: lo legge solo il test, dal DB
+    const row = await db.candidature.findFirstOrThrow({ where: { seasonId: id, projectionOrder: order }, include: { participant: true } });
+    const cid = row.id;
     await db.candidature.update({ where: { id: cid }, data: { screeningAt: new Date(Date.now() - 1000) } });
-    const row = await db.candidature.findUniqueOrThrow({ where: { id: cid }, include: { participant: true } });
     const proposer = users.find(u => u.id === row.participant.userId)!;
     const voters = users.filter(u => u !== proposer && u !== presi); // votanti semplici, non presidente
-    const path = `${base}/candidatures/${cid}`;
+    const path = `${base}/program/${order}`;
     const full = (v: number) => ({ votes: awards.map(a => ({ awardId: a.id, value: v })) });
     const vote = (who: U, payload: object = full(70)) => app.inject({ method: "POST", url: `${path}/votes`, cookies: who.cookies, payload });
     const open = (who: U = presi) => app.inject({ method: "POST", url: `${path}/open-voting`, cookies: who.cookies });
@@ -64,7 +66,7 @@ async function setup(tag: string) {
     const mine = (who: U) => app.inject({ method: "GET", url: `${path}/votes/me`, cookies: who.cookies });
     const season = (who: U) => app.inject({ method: "GET", url: base, cookies: who.cookies });
     TEST_OUTBOX.length = 0;
-    return { presi, users, proposer, voters, awards, other, id, base, cid, path, full, vote, open, remind, mine, season };
+    return { presi, users, proposer, voters, awards, other, id, base, cid, order, path, full, vote, open, remind, mine, season };
 }
 
 test("voto completo, immutabile, non sul proprio film", async () => {
@@ -179,6 +181,7 @@ test("open-voting prima della proiezione → 400; poi idempotente con email", as
     assert.equal(r.statusCode, 200);
     assert.equal(r.json().votingOpen, true);
     assert.equal(TEST_OUTBOX.length, 3);
+    assert.ok(r.json().movie.title.includes("<"));
     const title = r.json().movie.title.replace("<", "&lt;").replace(">", "&gt;");
     for (const m of TEST_OUTBOX) {
         assert.equal(m.subject, `Vota il film: ${r.json().movie.title}`);
@@ -191,17 +194,22 @@ test("open-voting prima della proiezione → 400; poi idempotente con email", as
     assert.equal(TEST_OUTBOX.length, 0);
 });
 
-test("candidatura non svelata o di altra rassegna → 404", async () => {
+test("ordine non svelato, inesistente o non numerico → 404 identico", async () => {
     const s = await setup("g");
-    const other = await setup("g2");
     const hidden = await getPrismaClient().candidature.findFirstOrThrow({ where: { seasonId: s.id, revealedAt: null } });
-    const at = (cid: number, suffix: string, who: U, method: "GET" | "POST" = "POST") =>
-        app.inject({ method, url: `${s.base}/candidatures/${cid}/${suffix}`, cookies: who.cookies, payload: method === "POST" ? s.full(1) : undefined });
-    const msg = (await at(hidden.id, "open-voting", s.presi)).json().message;
-    for (const cid of [hidden.id, 999999, other.cid]) {
-        assert.equal((await at(cid, "open-voting", s.presi)).json().message, msg);
-        assert.equal((await at(cid, "vote-reminder", s.presi)).statusCode, 404);
-        assert.equal((await at(cid, "votes", s.voters[0]!)).statusCode, 404);
-        assert.equal((await at(cid, "votes/me", s.voters[0]!, "GET")).statusCode, 404);
+    assert.notEqual(hidden.projectionOrder, null);
+    const at = (order: string | number, suffix: string, who: U, method: "GET" | "POST" = "POST") =>
+        app.inject({ method, url: `${s.base}/program/${order}/${suffix}`, cookies: who.cookies, payload: method === "POST" ? s.full(1) : undefined });
+    const ref = await at(999999, "votes/me", s.voters[0]!, "GET");
+    assert.equal(ref.statusCode, 404);
+    for (const order of [hidden.projectionOrder!, 999999, 0, "abc"]) {
+        assert.equal((await at(order, "open-voting", s.presi)).statusCode, 404);
+        assert.equal((await at(order, "vote-reminder", s.presi)).statusCode, 404);
+        assert.equal((await at(order, "votes", s.voters[0]!)).statusCode, 404);
+        const me = await at(order, "votes/me", s.voters[0]!, "GET");
+        assert.equal(me.statusCode, ref.statusCode);
+        assert.equal(me.body, ref.body);
     }
+    // l'ordine svelato risponde
+    assert.equal((await at(s.order, "votes/me", s.voters[0]!, "GET")).statusCode, 200);
 });

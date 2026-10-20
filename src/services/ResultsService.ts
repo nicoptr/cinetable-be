@@ -20,6 +20,7 @@ type Envelope = Prisma.SeasonAwardGetPayload<{ select: typeof envelopeSelect }>;
 /** Film e proponente: solo per i vincitori di buste aperte, o per tutti quando sono aperte tutte. */
 const filmSelect = {
     id: true,
+    projectionOrder: true,
     movie: true,
     participant: { select: { userId: true, category: { select: { id: true, name: true } }, user: { select: { username: true, avatarUrl: true } } } },
 } satisfies Prisma.CandidatureSelect;
@@ -47,6 +48,10 @@ export class ResultsService {
             if (status !== "SCREENING" && status !== "FINAL") throw new httpErrors.BadRequest(NOT_EDITABLE);
             const hidden = await tx.candidature.count({ where: { seasonId: season.id, status: "VALID", revealedAt: null } });
             if (hidden || (await this.candidatures.findPendingScreening(tx, season.id))) throw new httpErrors.BadRequest(NOT_READY);
+            // un film senza voto aperto perderebbe in silenzio ogni premio
+            if (await tx.candidature.count({ where: { seasonId: season.id, status: "VALID", votingOpenedAt: null } })) {
+                throw new httpErrors.BadRequest("Apri il voto su tutti i film prima della serata finale");
+            }
 
             await tx.seasonAward.updateMany({ where: { seasonId: season.id, awardId, revealedAt: null }, data: { revealedAt: new Date() } });
             const closed = (await tx.seasonAward.count({ where: { seasonId: season.id, revealedAt: null } })) === 0;
@@ -67,7 +72,7 @@ export class ResultsService {
         return {
             awards: await Promise.all(open.map(e => this.result(db, season.id, e))),
             allRevealed,
-            proposers: films.map(f => ({ candidatureId: f.id, movie: toMovieView(f.movie), proposer: proposerOf(f) })),
+            proposers: films.map(f => ({ order: f.projectionOrder!, movie: toMovieView(f.movie), proposer: proposerOf(f) })),
         };
     }
 

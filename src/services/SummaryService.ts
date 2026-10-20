@@ -2,7 +2,7 @@ import { Service } from "fastify-decorators";
 import httpErrors from "http-errors";
 import { ResultsService } from "@services/ResultsService";
 import { SeasonService } from "@services/SeasonService";
-import { SeasonRecap } from "@models/Season";
+import { SeasonSummary } from "@models/Season";
 import { toMovieView } from "@models/Movie";
 import { getPrismaClient } from "@utils/prisma";
 import { findWinners } from "@utils/winners";
@@ -14,7 +14,7 @@ const person = (u: { id: number; username: string; avatarUrl: string | null }) =
 export class SummaryService {
     constructor(private readonly seasons: SeasonService, private readonly results: ResultsService) {}
 
-    async get(userId: number, cineforumId: number, seasonId: number): Promise<SeasonRecap> {
+    async get(userId: number, cineforumId: number, seasonId: number): Promise<SeasonSummary> {
         const { season } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
         if (season.status !== "DONE") throw new httpErrors.NotFound("Scheda disponibile a rassegna conclusa");
         const db = getPrismaClient();

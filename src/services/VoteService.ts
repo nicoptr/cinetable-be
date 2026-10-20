@@ -23,31 +23,31 @@ export class VoteService {
     ) {}
 
     /** Come planScreening: non svelata o di un'altra rassegna è indistinguibile da inesistente. */
-    private async requireRevealed(seasonId: number, candidatureId: number) {
-        const c = await this.candidatures.findRevealed(seasonId, candidatureId);
+    private async requireRevealed(seasonId: number, order: number) {
+        const c = await this.candidatures.findRevealed(seasonId, order);
         if (!c) throw new httpErrors.NotFound("Film non trovato");
         return c;
     }
 
-    async openVoting(userId: number, cineforumId: number, seasonId: number, candidatureId: number): Promise<ProgramItem> {
+    async openVoting(userId: number, cineforumId: number, seasonId: number, order: number): Promise<ProgramItem> {
         await requirePresident(userId, cineforumId);
         const { season, participant } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
         if (season.status !== "SCREENING") throw new httpErrors.BadRequest(NOT_EDITABLE);
-        const c = await this.requireRevealed(season.id, candidatureId);
+        const c = await this.requireRevealed(season.id, order);
         if (!c.screeningAt || c.screeningAt > new Date()) throw new httpErrors.BadRequest("Il voto si apre dopo la proiezione");
 
         // l'email parte solo da chi apre davvero: la seconda chiamata non rimanda nulla
-        if (await this.repo.openVoting(candidatureId)) {
+        if (await this.repo.openVoting(c.id)) {
             const html = votingOpenTemplate(c.movie.title);
-            const recipients = await this.repo.recipients(season.id, candidatureId, c.participantId, false);
+            const recipients = await this.repo.recipients(season.id, c.id, c.participantId, false);
             await Promise.all(recipients.map(r => this.email.send(r.user.email, `Vota il film: ${c.movie.title}`, html)));
         }
-        return toProgramItem(await this.candidatures.findProgramRow(candidatureId), { participantId: participant?.id ?? null, isPresident: true });
+        return toProgramItem(await this.candidatures.findProgramRow(c.id), { participantId: participant?.id ?? null, isPresident: true });
     }
 
-    async vote(userId: number, cineforumId: number, seasonId: number, candidatureId: number, data: VoteDTO): Promise<{ submitted: true }> {
+    async vote(userId: number, cineforumId: number, seasonId: number, order: number, data: VoteDTO): Promise<{ submitted: true }> {
         const { season, participant } = await this.seasons.requireParticipant(userId, cineforumId, seasonId);
-        const c = await this.requireRevealed(season.id, candidatureId);
+        const c = await this.requireRevealed(season.id, order);
         if (!c.votingOpenedAt) throw new httpErrors.BadRequest("Il voto non è aperto");
         if (c.participantId === participant.id) throw new httpErrors.Forbidden("Non puoi votare il tuo film");
 
@@ -62,8 +62,8 @@ export class VoteService {
                 // stesso lock dell'apertura delle buste: un voto non entra dopo un risultato annunciato
                 const { status } = await this.candidatures.lockSeason(tx, season.id);
                 if (status === "FINAL" || status === "DONE") throw new httpErrors.BadRequest("Le votazioni sono chiuse");
-                if (await this.repo.hasVoted(tx, candidatureId, participant.id)) throw already;
-                await this.repo.createMany(tx, candidatureId, participant.id, data.votes);
+                if (await this.repo.hasVoted(tx, c.id, participant.id)) throw already;
+                await this.repo.createMany(tx, c.id, participant.id, data.votes);
             });
         } catch (err) {
             // due invii simultanei: il vincolo unico lascia passare solo il primo
@@ -73,21 +73,21 @@ export class VoteService {
         return { submitted: true };
     }
 
-    async mine(userId: number, cineforumId: number, seasonId: number, candidatureId: number) {
+    async mine(userId: number, cineforumId: number, seasonId: number, order: number) {
         const { season, participant } = await this.seasons.requireParticipant(userId, cineforumId, seasonId);
-        await this.requireRevealed(season.id, candidatureId);
-        return this.repo.mine(candidatureId, participant.id);
+        const c = await this.requireRevealed(season.id, order);
+        return this.repo.mine(c.id, participant.id);
     }
 
     /** Solo il numero di email inviate: i nomi di chi non ha votato rivelerebbero il proponente. */
-    async remind(userId: number, cineforumId: number, seasonId: number, candidatureId: number): Promise<{ sent: number }> {
+    async remind(userId: number, cineforumId: number, seasonId: number, order: number): Promise<{ sent: number }> {
         await requirePresident(userId, cineforumId);
         const { season } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
         if (season.status !== "SCREENING") throw new httpErrors.BadRequest(NOT_EDITABLE);
-        const c = await this.requireRevealed(season.id, candidatureId);
+        const c = await this.requireRevealed(season.id, order);
         if (!c.votingOpenedAt) throw new httpErrors.BadRequest("Il voto non è aperto");
 
-        const recipients = await this.repo.recipients(season.id, candidatureId, c.participantId, true);
+        const recipients = await this.repo.recipients(season.id, c.id, c.participantId, true);
         const html = voteReminderTemplate(c.movie.title);
         await Promise.all(recipients.map(r => this.email.send(r.user.email, "Manca il tuo voto", html)));
         return { sent: recipients.length };

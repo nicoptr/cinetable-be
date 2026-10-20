@@ -8,6 +8,7 @@ import { getPrismaClient } from "@utils/prisma";
  * Verifica trasversale della segretezza (spec §7): in ogni fase, presidente partecipante e un membro
  * chiamano ogni GET del gioco; nessun corpo contiene un film non svelato e non proprio, né la coppia
  * (proponente, film altrui) prima che la busta vinta da quel film, o tutte, siano aperte.
+ * L'id di una candidatura (sequenziale: tradirebbe l'ordine di invio) non esce mai, in nessuna fase.
  */
 const URL = "/sub/api";
 const days = (n: number) => new Date(Date.now() + n * 86400000).toISOString();
@@ -20,12 +21,14 @@ const MOVIES = ["A", "B", "C", "D"].map((l, i) => ({
 const marks = (m: (typeof MOVIES)[number]) => [String(m.tmdbId), m.title, m.originalTitle, m.posterPath];
 
 /** Chiavi di un ProgramItem: nessun proponente, nessun participantId. */
-const PROGRAM_KEYS = ["candidatureId", "order", "movie", "category", "screeningAt", "location", "votingOpen", "isMine", "myVoteSubmitted", "votesMissing"];
+const PROGRAM_KEYS = ["order", "movie", "category", "screeningAt", "location", "votingOpen", "isMine", "myVoteSubmitted", "votesMissing"];
 const PROPOSER_KEYS = new Set(["proposer", "userId", "participantId", "participant", "user", "username", "avatarUrl"]);
 
 before(async () => {
     app = await buildApp();
     await resetDb();
+    // id riconoscibili: nessun altro numero nei corpi può valere tanto
+    await getPrismaClient().$executeRawUnsafe('ALTER SEQUENCE "Candidature_id_seq" RESTART WITH 700001');
     stubTmdb(MOVIES);
 });
 after(async () => {
@@ -33,7 +36,7 @@ after(async () => {
 });
 
 type U = Awaited<ReturnType<typeof makeUser>> & { name: string };
-type Film = { cid: number; tmdbId: number; movie: (typeof MOVIES)[number]; proposer: U };
+type Film = { cid: number; order: number | null; tmdbId: number; movie: (typeof MOVIES)[number]; proposer: U };
 
 const hasKeyDeep = (v: unknown, keys: Set<string>): boolean =>
     !!v && typeof v === "object" && Object.entries(v).some(([k, x]) => keys.has(k) || hasKeyDeep(x, keys));
@@ -67,9 +70,12 @@ test("nessuna risposta del gioco tradisce film non svelati o proponenti", async 
     const rows = await db.candidature.findMany({ where: { seasonId: id }, include: { participant: true, movie: true } });
     const films: Film[] = rows.map(r => {
         const movie = MOVIES.find(m => m.tmdbId === r.movie.tmdbId)!;
-        return { cid: r.id, tmdbId: movie.tmdbId, movie, proposer: users.find(u => u.id === r.participant.userId)! };
+        return { cid: r.id, order: null, tmdbId: movie.tmdbId, movie, proposer: users.find(u => u.id === r.participant.userId)! };
     });
     assert.equal(films.length, 4);
+    assert.ok(films.every(f => f.cid >= 700001), "sequenza delle candidature non impostata");
+    const cids = new Set(films.map(f => f.cid));
+    const isCid = (x: unknown) => (typeof x === "number" || typeof x === "string") && cids.has(Number(x));
 
     // stato noto al test, aggiornato a ogni passo
     const revealed = new Set<number>();
@@ -87,10 +93,15 @@ test("nessuna risposta del gioco tradisce film non svelati o proponenti", async 
         try { json = JSON.parse(body); } catch { return; }
         const walk = (v: unknown): void => {
             if (!v || typeof v !== "object") return;
-            if (Array.isArray(v)) return v.forEach(walk);
+            if (Array.isArray(v)) {
+                for (const x of v) assert.ok(!isCid(x), `${where}: id di candidatura ${x} in un array`);
+                return v.forEach(walk);
+            }
             const o = v as Record<string, unknown>;
-            // id di candidatura: solo per film svelati
-            if (typeof o.candidatureId === "number") assert.ok(revealed.has(o.candidatureId), `${where}: candidatureId non svelata ${o.candidatureId}`);
+            // nessun id di candidatura, sotto nessuna chiave, nemmeno come stringa
+            for (const [k, x] of Object.entries(o)) {
+                assert.ok(!isCid(x), `${where}: id di candidatura ${x} in ${k}`);
+            }
             const movie = o.movie as { tmdbId?: number } | null | undefined;
             const f = movie && films.find(x => x.tmdbId === movie.tmdbId);
             if (f) {
@@ -118,13 +129,21 @@ test("nessuna risposta del gioco tradisce film non svelati o proponenti", async 
                 `${base}/candidature`, `${URL}/cineforums/${cf}/categories`, `${URL}/cineforums/${cf}/awards`,
                 `${URL}/cineforums/${cf}`, `${URL}/cineforums`, `${URL}/cineforums/${cf}/invitations`, `${URL}/invitations/mine`,
                 `${URL}/auth/me`,
-                // anche le candidature non svelate: devono essere indistinguibili da inesistenti
-                ...films.map(f => `${base}/candidatures/${f.cid}/votes/me`),
+                // anche gli ordini non svelati: devono essere indistinguibili da inesistenti
+                ...[1, 2, 3, 4, 999999].map(n => `${base}/program/${n}/votes/me`),
             ];
             for (const url of routes) {
                 const r = await app.inject({ method: "GET", url, cookies: viewer.cookies });
                 assert.ok(r.statusCode < 500, `${phase} ${url}: ${r.statusCode}`);
                 check(viewer, `${phase} GET ${url}`, r.body);
+            }
+            const missing = await app.inject({ method: "GET", url: `${base}/program/999999/votes/me`, cookies: viewer.cookies });
+            assert.equal(missing.statusCode, 404);
+            for (const n of [1, 2, 3, 4]) {
+                if (films.some(f => f.order === n && revealed.has(f.cid))) continue;
+                const r = await app.inject({ method: "GET", url: `${base}/program/${n}/votes/me`, cookies: viewer.cookies });
+                assert.equal(r.statusCode, missing.statusCode, `${phase} votes/me ordine ${n} non svelato`);
+                assert.equal(r.body, missing.body, `${phase} votes/me ordine ${n} non svelato`);
             }
             const s = await app.inject({ method: "GET", url: `${base}/summary`, cookies: viewer.cookies });
             assert.equal(s.statusCode, summaryStatus, `${phase} summary`);
@@ -143,13 +162,20 @@ test("nessuna risposta del gioco tradisce film non svelati o proponenti", async 
     const revealOne = async () => {
         const r = await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies });
         assert.equal(r.statusCode, 200);
-        const cid: number = r.json().candidatureId;
-        revealed.add(cid);
+        const order: number = r.json().order;
+        const f = films.find(x => x.movie.tmdbId === r.json().movie.tmdbId)!;
+        f.order = order;
+        revealed.add(f.cid);
         check(presi, "POST reveal-next", r.body);
-        await db.candidature.update({ where: { id: cid }, data: { screeningAt: new Date(Date.now() - 1000) } });
-        const ov = await app.inject({ method: "POST", url: `${base}/candidatures/${cid}/open-voting`, cookies: presi.cookies });
+        // proiezione già avvenuta, registrata a posteriori
+        const sc = await app.inject({ method: "PATCH", url: `${base}/program/${order}/screening`, cookies: presi.cookies, payload: { screeningAt: new Date(Date.now() - 1000).toISOString(), location: "Sala" } });
+        assert.equal(sc.statusCode, 200);
+        check(presi, "PATCH screening", sc.body);
+        const ov = await app.inject({ method: "POST", url: `${base}/program/${order}/open-voting`, cookies: presi.cookies });
+        assert.equal(ov.statusCode, 200);
         check(presi, "POST open-voting", ov.body);
-        return cid;
+        const rem = await app.inject({ method: "POST", url: `${base}/program/${order}/vote-reminder`, cookies: presi.cookies });
+        check(presi, "POST vote-reminder", rem.body);
     };
     await revealOne();
     await sweep("SCREENING", 404);
@@ -159,7 +185,7 @@ test("nessuna risposta del gioco tradisce film non svelati o proponenti", async 
     for (const f of films) {
         for (const v of users.filter(u => u !== f.proposer)) {
             const r = await app.inject({
-                method: "POST", url: `${base}/candidatures/${f.cid}/votes`, cookies: v.cookies,
+                method: "POST", url: `${base}/program/${f.order}/votes`, cookies: v.cookies,
                 payload: { votes: [{ awardId: regia.id, value: f.proposer === A ? 90 : 50 }, { awardId: trama.id, value: f.proposer === B ? 80 : 40 }] },
             });
             assert.equal(r.statusCode, 201);

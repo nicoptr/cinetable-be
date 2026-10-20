@@ -47,20 +47,20 @@ async function setup(tag: string) {
         await app.inject({ method: "PUT", url: `${base}/candidature`, cookies: u.cookies, payload: { tmdbId: MOVIES[i]!.tmdbId } });
     }
     await db.season.update({ where: { id }, data: { candidaturesCloseAt: new Date(Date.now() - 1000) } });
-    const films: { cid: number; proposer: U }[] = [];
+    const films: { cid: number; order: number; proposer: U }[] = [];
     for (let i = 0; i < 4; i++) {
-        const cid: number = (await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies })).json().candidatureId;
-        await db.candidature.update({ where: { id: cid }, data: { screeningAt: new Date(Date.now() - 1000), location: `Sala ${i}` } });
-        await app.inject({ method: "POST", url: `${base}/candidatures/${cid}/open-voting`, cookies: presi.cookies });
-        const row = await db.candidature.findUniqueOrThrow({ where: { id: cid }, include: { participant: true } });
-        films.push({ cid, proposer: users.find(u => u.id === row.participant.userId)! });
+        const order: number = (await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies })).json().order;
+        const row = await db.candidature.findFirstOrThrow({ where: { seasonId: id, projectionOrder: order }, include: { participant: true } });
+        await db.candidature.update({ where: { id: row.id }, data: { screeningAt: new Date(Date.now() - 1000), location: `Sala ${i}` } });
+        await app.inject({ method: "POST", url: `${base}/program/${order}/open-voting`, cookies: presi.cookies });
+        films.push({ cid: row.id, order, proposer: users.find(u => u.id === row.participant.userId)! });
     }
     for (const f of films) {
         for (const v of users.filter(u => u !== f.proposer && !(u === C && f.proposer === presi))) {
             const r = f.proposer === A ? (v === presi ? 91 : 90) : 50;
             const t = f.proposer === B || f.proposer === C ? 80 : 40;
             const res = await app.inject({
-                method: "POST", url: `${base}/candidatures/${f.cid}/votes`, cookies: v.cookies,
+                method: "POST", url: `${base}/program/${f.order}/votes`, cookies: v.cookies,
                 payload: { votes: [{ awardId: regia.id, value: r }, { awardId: trama.id, value: t }] },
             });
             assert.equal(res.statusCode, 201);
@@ -98,7 +98,7 @@ test("scheda completa: film in ordine con proponente, medie per premio, vincitor
     assert.deepEqual(body.films.map((f: { order: number }) => f.order), [...body.films.map((f: { order: number }) => f.order)].sort((a, b) => a - b));
     assert.equal(new Set(body.films.map((f: { order: number }) => f.order)).size, 4);
     for (const f of body.films) {
-        const mine = s.films.find(x => x.cid && x.proposer.id === f.proposer.userId)!;
+        const mine = s.films.find(x => x.order === f.order && x.proposer.id === f.proposer.userId)!;
         assert.ok(mine);
         assert.equal(f.scores.length, 2);
         assert.equal(typeof f.category.name, "string");
@@ -143,7 +143,7 @@ test("la scheda resta uguale nel tempo", async () => {
     assert.deepEqual((await s.summary(s.A)).json(), first);
     // il film del presidente: C non l'ha votato, quindi l'unico motivo di rifiuto è la rassegna chiusa
     const vote = await app.inject({
-        method: "POST", url: `${s.base}/candidatures/${s.films.find(f => f.proposer === s.presi)!.cid}/votes`, cookies: s.C.cookies,
+        method: "POST", url: `${s.base}/program/${s.films.find(f => f.proposer === s.presi)!.order}/votes`, cookies: s.C.cookies,
         payload: { votes: [{ awardId: s.regia.id, value: 1 }, { awardId: s.trama.id, value: 1 }] },
     });
     assert.equal(vote.statusCode, 400);

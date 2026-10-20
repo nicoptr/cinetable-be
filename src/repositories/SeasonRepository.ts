@@ -3,6 +3,8 @@ import { Service } from "fastify-decorators";
 import { getPrismaClient } from "@utils/prisma";
 import { programSelect } from "@models/Candidature";
 
+type Db = Prisma.TransactionClient;
+
 const summary = { id: true, name: true, status: true, candidaturesCloseAt: true, finalNightAt: true } as const;
 const full = {
     ...summary,
@@ -65,8 +67,8 @@ export class SeasonRepository {
     }
 
     /** Solo i campi presenti in `d` cambiano; liste (categorie, premi, partecipanti) sono sostituite per intero. */
-    update(id: number, d: { name?: string; description?: string; candidaturesCloseAt?: Date; finalNightAt?: Date; categoryIds?: number[]; awardIds?: number[]; participantUserIds?: number[] }) {
-        return this.db.season.update({
+    update(id: number, d: { name?: string; description?: string; candidaturesCloseAt?: Date; finalNightAt?: Date; categoryIds?: number[]; awardIds?: number[]; participantUserIds?: number[] }, db: Db = this.db) {
+        return db.season.update({
             where: { id },
             data: {
                 name: d.name,
@@ -79,6 +81,12 @@ export class SeasonRepository {
             },
             select: { id: true },
         });
+    }
+
+    /** Solo una bozza; false se non lo era più. */
+    async deleteDraft(id: number): Promise<boolean> {
+        const { count } = await this.db.season.deleteMany({ where: { id, status: "DRAFT" } });
+        return count === 1;
     }
 
     /** Transizione DRAFT → OPEN con assegnazione delle categorie; false se non era più in bozza. */
