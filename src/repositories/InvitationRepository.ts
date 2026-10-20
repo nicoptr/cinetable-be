@@ -17,6 +17,10 @@ export class InvitationRepository {
         });
     }
 
+    countSentSince(invitedById: number, since: Date): Promise<number> {
+        return this.db.invitation.count({ where: { invitedById, updatedAt: { gte: since } } });
+    }
+
     findByCineforum(cineforumId: number): Promise<Invitation[]> {
         return this.db.invitation.findMany({ where: { cineforumId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
     }

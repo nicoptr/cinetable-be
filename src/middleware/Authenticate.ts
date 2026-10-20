@@ -8,11 +8,11 @@ export function Authenticate() {
         try {
             await req.jwtVerify();
         } catch (err) {
-            throw new httpErrors.Unauthorized();
+            throw new httpErrors.Unauthorized("Sessione non valida o scaduta");
         }
         const { id, v } = req.user as unknown as { id: number; v: number };
         const user = await getInstanceByToken<UserRepository>(UserRepository).findById(id);
-        if (!user || user.tokenVersion !== v) throw new httpErrors.Unauthorized();
+        if (!user || user.tokenVersion !== v) throw new httpErrors.Unauthorized("Sessione non valida o scaduta");
         req.user = { id };
     };
 }

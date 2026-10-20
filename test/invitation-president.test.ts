@@ -4,6 +4,8 @@ import { buildApp, resetDb, lastEmailTo, TEST_OUTBOX } from "./helpers";
 import { getPrismaClient } from "@utils/prisma";
 import { encryptPasswordSync } from "@utils/crypto";
 import { hashToken } from "@utils/tokens";
+import { getInstanceByToken } from "fastify-decorators";
+import { EmailSenderService } from "@services/EmailSenderService";
 
 const URL = "/sub/api";
 let app: Awaited<ReturnType<typeof buildApp>>;
@@ -128,4 +130,29 @@ test("rate limit per utente: 20 richieste/ora poi 429", async () => {
     assert.equal((await invite(cf, cookies, ["rl-extra@x.it"])).statusCode, 429);
     const { cookies: altro, cf: cf2 } = await setup("pres9@x.it");
     assert.equal((await invite(cf2, altro, ["ok@x.it"])).statusCode, 201);
+});
+
+test("limite giornaliero: oltre 100 inviti → 429 senza creare nulla", async () => {
+    const { cookies, cf } = await setup("pres-cap@x.it");
+    const batch = (from: number) => Array.from({ length: 50 }, (_, i) => `cap${from + i}@x.it`);
+    assert.equal((await invite(cf, cookies, batch(0))).statusCode, 201);
+    assert.equal((await invite(cf, cookies, batch(50))).statusCode, 201);
+    const r = await invite(cf, cookies, ["extra@x.it"]);
+    assert.equal(r.statusCode, 429);
+    assert.equal(r.json().message, "Hai raggiunto il limite di inviti per oggi");
+    assert.equal(await getPrismaClient().invitation.count({ where: { cineforumId: cf } }), 100);
+});
+
+test("SMTP giù durante un invito: 201 lo stesso", async () => {
+    const { cookies, cf } = await setup("pres-smtp@x.it");
+    const mailer = getInstanceByToken<EmailSenderService>(EmailSenderService);
+    const original = mailer.transporter;
+    mailer.transporter = { sendMail: async () => { throw new Error("smtp down"); } } as unknown as typeof original;
+    try {
+        const r = await invite(cf, cookies, ["smtpdown@x.it"]);
+        assert.equal(r.statusCode, 201);
+        assert.equal(r.json().length, 1);
+    } finally {
+        mailer.transporter = original;
+    }
 });

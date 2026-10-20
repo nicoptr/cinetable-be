@@ -1,5 +1,4 @@
 import { compare, genSaltSync, hash, hashSync } from "bcryptjs";
-import { randomBytes } from "crypto";
 
 /**
  * Encrypts a given password and returns the encrypted version
@@ -32,7 +31,3 @@ export async function comparePasswords(password: string, candidatePassword: stri
     });
 }
 
-
-export function generateRandomString(len: number) {
-    return randomBytes(len).toString('hex').toUpperCase();
-}

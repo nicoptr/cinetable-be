@@ -28,10 +28,10 @@ yarn prisma generate
 yarn dev
 ```
 
-5) On start a new migration
+5) Migrazioni
 ```
-yarn prisma generate
-yarn prisma migrate dev --name "init"
+npx prisma migrate deploy   # DB vuoto: applica le migrazioni esistenti
+npx prisma migrate reset    # solo sviluppo: azzera e ricrea il DB
 ```
 
 6) Tests
@@ -56,3 +56,4 @@ Build output will be available at `/dist/`
 - Questa versione richiede un database **vuoto**: si riparte da zero (nessuna migrazione dei dati precedenti).
 - In production `JWT_SECRET` (min 32 caratteri) e `CLIENT_URL` sono obbligatori, altrimenti l'avvio fallisce.
 - Dietro un reverse proxy impostare `TRUST_PROXY=true`, altrimenti i rate limit per IP vedono solo l'IP del proxy.
+- Email (verifica, reset password, inviti): configurare `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` e `SMTP_FROM`. Se l'SMTP non risponde le richieste riescono comunque e l'errore viene solo registrato nei log.

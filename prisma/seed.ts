@@ -3,6 +3,9 @@ import { encryptPasswordSync } from "@utils/crypto";
 import { LOGGER } from "@utils/winston";
 
 export async function seed(prisma: PrismaClient) {
+    if (process.env.NODE_ENV === "production" && (process.env.GOD_PASSWORD ?? "").length < 8) {
+        throw new Error("GOD_PASSWORD deve avere almeno 8 caratteri per il seed in production");
+    }
     const email = process.env.GOD_EMAIL!;
     if (await prisma.user.findUnique({ where: { email } })) return;
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UsernameSchema } from "@models/Auth";
 
 export const PublicUserSchema = z.object({
     id: z.number(),
@@ -18,13 +19,13 @@ export const MeSchema = PublicUserSchema.extend({
 });
 
 export const UpdateProfileInputSchema = z.object({
-    username: z.string().trim().min(3).max(30).optional(),
+    username: UsernameSchema.optional(),
     avatarUrl: z.string().url().startsWith("https://").nullable().optional(),
 }).strict();
 export type UpdateProfileDTO = z.infer<typeof UpdateProfileInputSchema>;
 
 export const ChangePasswordInputSchema = z.object({
     currentPassword: z.string().min(1),
-    newPassword: z.string().min(8),
+    newPassword: z.string().min(8).max(72),
 }).strict();
 export type ChangePasswordDTO = z.infer<typeof ChangePasswordInputSchema>;

@@ -5,7 +5,7 @@ import { InvitationRepository } from "@repositories/InvitationRepository";
 import { EmailSenderService } from "@services/EmailSenderService";
 import { InvitationView, InviteInfo, MyInvitation } from "@models/Invitation";
 import { requirePresident } from "@utils/membership";
-import { getPrismaClient } from "@utils/prisma";
+import { getPrismaClient, isUniqueViolation } from "@utils/prisma";
 import { expiresIn, generateToken, hashToken, TOKEN_TTL } from "@utils/tokens";
 import { cineforumInvitationTemplate } from "../templates/email/cineforumInvitationTemplate";
 
@@ -19,6 +19,7 @@ export function toInvitationView(i: Invitation): InvitationView {
     };
 }
 
+const INVITES_PER_DAY = 100;
 const NOT_ACTIVE = "L'invito non è più attivo";
 const INVALID = "Invito non valido o scaduto";
 
@@ -37,13 +38,24 @@ export class InvitationService {
             if (i.status === "ACCEPTED") skip.add(i.email);
         }
         const context = await this.repository.findEmailContext(cineforumId, userId);
-        const views: InvitationView[] = [];
-        for (const email of emails.filter(e => !skip.has(e))) {
-            const { token, hash } = generateToken();
-            const invitation = await this.repository.upsert(cineforumId, email, userId, hash, expiresIn(TOKEN_TTL.INVITATION));
-            await this.sendEmail(invitation, token, context);
-            views.push(toInvitationView(invitation));
+        const toInvite = emails.filter(e => !skip.has(e));
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        if (await this.repository.countSentSince(userId, since) + toInvite.length > INVITES_PER_DAY) {
+            throw new httpErrors.TooManyRequests("Hai raggiunto il limite di inviti per oggi");
         }
+        const views: InvitationView[] = [];
+        const sends: Promise<void>[] = [];
+        for (const email of toInvite) {
+            const { token, hash } = generateToken();
+            try {
+                const invitation = await this.repository.upsert(cineforumId, email, userId, hash, expiresIn(TOKEN_TTL.INVITATION));
+                sends.push(this.sendEmail(invitation, token, context));
+                views.push(toInvitationView(invitation));
+            } catch (e) {
+                if (!isUniqueViolation(e)) throw e; // invito concorrente allo stesso indirizzo: già invitato
+            }
+        }
+        await Promise.all(sends);
         return views;
     }
 

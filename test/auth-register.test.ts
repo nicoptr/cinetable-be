@@ -143,3 +143,18 @@ test("PATCH /users/me/password: cambia, invalida le altre sessioni, mantiene la 
     assert.equal((await app.inject({ method: "GET", url: `${URL}/auth/me`, cookies: fresh })).statusCode, 200);
     assert.equal((await login("terzapass1")).statusCode, 200);
 });
+
+test("username che sembra un'email, caratteri non ammessi o password > 72: 400", async () => {
+    assert.equal((await register({ email: "v@x.it", username: "victim@x.it", password: "password1" })).statusCode, 400);
+    assert.equal((await register({ email: "w@x.it", username: "wi<b>x", password: "password1" })).statusCode, 400);
+    assert.equal((await register({ email: "p@x.it", username: "pippo", password: "a".repeat(73) })).statusCode, 400);
+});
+
+test("errori 4xx di Fastify non diventano 500 (body JSON vuoto)", async () => {
+    const r = await app.inject({
+        method: "POST", url: `${URL}/auth/logout`, remoteAddress: `10.1.0.${++ipCounter}`,
+        headers: { "content-type": "application/json" }, payload: "",
+    });
+    assert.equal(r.statusCode, 400);
+    assert.equal(typeof r.json().code, "string");
+});

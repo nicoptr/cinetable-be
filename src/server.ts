@@ -10,8 +10,6 @@ import fastifyCors from "@fastify/cors";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
 import fastifyHelmet from "@fastify/helmet";
-import fastifyMultipart from "@fastify/multipart";
-import fastifyCron from "fastify-cron";
 import * as process from "process";
 import { LOGGER } from "@utils/winston";
 import { jsonSchemaTransform, serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
@@ -32,10 +30,9 @@ export class APIServer {
             trustProxy: process.env.TRUST_PROXY === "true",
         })
         this.server = app.withTypeProvider<ZodTypeProvider>();
-        this.setupMultipart();
         this.configureAuthentication();
         this.addSecurityConfiguration();
-        this.configureSwagger();
+        if (process.env.NODE_ENV !== "production") this.configureSwagger();
         this.configureCors();
         this.registerController();
         this.setupFastifyConfiguration();
@@ -44,7 +41,7 @@ export class APIServer {
     public async start() {
         try {
             await this.ready();
-            this.server.swagger();
+            if (process.env.NODE_ENV !== "production") this.server.swagger();
             await this.server.listen({ host: process.env.HOST!, port: +process.env.PORT! })
                 .then(async () => {
                     LOGGER.info(`API Server up and running in ${process.env.NODE_ENV} environment on port ${process.env.PORT!}!`);
@@ -82,12 +79,13 @@ export class APIServer {
         this.server.setSerializerCompiler(serializerCompiler);
         this.server.setErrorHandler(
             (error: Error, req: FastifyRequest, reply: FastifyReply) => {
-                if (error instanceof HttpError && error.statusCode < 500) LOGGER.warn(`${error}`);
+                const sc = (error as Error & { statusCode?: number }).statusCode;
+                if (typeof sc === "number" && sc < 500) LOGGER.warn(`${error}`);
                 else LOGGER.error(`${error} \n ${error.stack}`);
                 if (error instanceof ZodError) {
                     reply.status(400).send({
                         error: error.name,
-                        message: "Schema validation error",
+                        message: "Dati non validi",
                         issues: error.issues,
                     });
                     LOGGER.warn("End of error log");
@@ -97,11 +95,20 @@ export class APIServer {
                 if (error instanceof HttpError) {
                     return reply.status(error.statusCode).send({
                         error: "HttpError",
-                        code: (error as HttpError & { code?: string }).code ?? error.statusCode,
+                        code: (error as HttpError & { code?: string }).code ?? String(error.statusCode),
                         message: removeAnsi(error.message),
                         ...(process.env.NODE_ENV === "development" && {
                             stack: removeAnsi(error.stack ?? ""),
                         }),
+                    });
+                }
+
+                const status = (error as Error & { statusCode?: number }).statusCode;
+                if (typeof status === "number" && status < 500) {
+                    return reply.status(status).send({
+                        error: "HttpError",
+                        code: String((error as Error & { code?: string }).code ?? status),
+                        message: removeAnsi(error.message),
                     });
                 }
 
@@ -159,11 +166,10 @@ export class APIServer {
                 },
                 components: {
                     securitySchemes: {
-                        apiKey: {
+                        cookieAuth: {
                             type: "apiKey",
-                            description: "Bearer token",
-                            name: "Authorization",
-                            in: "header",
+                            name: "cinofili_token",
+                            in: "cookie",
                         },
                     },
                 },
@@ -197,12 +203,6 @@ export class APIServer {
             controllers: [AuthController, UserController, CineforumController, InvitationController, InviteeController],
             prefix: "/sub/api"
         });
-    }
-
-    private setupMultipart() {
-        LOGGER.info("Setup Multipart Configuration!");
-
-        this.server.register(fastifyMultipart);
     }
 
 }

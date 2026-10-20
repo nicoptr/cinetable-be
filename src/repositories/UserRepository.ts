@@ -28,7 +28,7 @@ export class UserRepository {
     }
 
     findByUsernameOrEmail(value: string): Promise<User | null> {
-        return this.users.findFirst({ where: { OR: [{ username: value }, { email: value.toLowerCase() }] } });
+        return this.users.findFirst({ where: value.includes("@") ? { email: value.toLowerCase() } : { username: value } });
     }
 
     update(id: number, data: Prisma.UserUpdateInput): Promise<User> {
