@@ -11,6 +11,7 @@ import { AwardController } from "@controllers/AwardController";
 import { SeasonController } from "@controllers/SeasonController";
 import { MovieController } from "@controllers/MovieController";
 import { CandidatureController } from "@controllers/CandidatureController";
+import { VoteController } from "@controllers/VoteController";
 import fastifyCors from "@fastify/cors";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
@@ -208,7 +209,7 @@ export class APIServer {
         this.server.register(bootstrap, {
             // directory: resolve(__dirname, "controllers"),
             // mask: /\.controller\./,
-            controllers: [AuthController, UserController, CineforumController, InvitationController, InviteeController, CategoryController, AwardController, SeasonController, MovieController, CandidatureController],
+            controllers: [AuthController, UserController, CineforumController, InvitationController, InviteeController, CategoryController, AwardController, SeasonController, MovieController, CandidatureController, VoteController],
             prefix: "/sub/api"
         });
     }

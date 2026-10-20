@@ -25,6 +25,8 @@ export type ScreeningDTO = z.infer<typeof ScreeningInputSchema>;
 export const programSelect = {
     id: true, projectionOrder: true, screeningAt: true, location: true, votingOpenedAt: true, participantId: true,
     movie: true,
+    // chi ha votato: serve solo a contare e a `myVoteSubmitted`, non esce mai
+    votes: { distinct: ["participantId"], select: { participantId: true } },
     participant: { select: { category: { select: { id: true, name: true } } } },
     season: { select: { _count: { select: { participants: true } } } },
 } satisfies Prisma.CandidatureSelect;
@@ -59,8 +61,8 @@ export function toProgramItem(c: ProgramRow, viewer: Viewer): ProgramItem {
         location: c.location,
         votingOpen: c.votingOpenedAt != null,
         isMine: c.participantId === viewer.participantId,
-        myVoteSubmitted: false, // Task 6
-        // nessun voto finché non arriva il Task 6: mancano tutti tranne il proponente
-        ...(viewer.isPresident && { votesMissing: c.season._count.participants - 1 }),
+        myVoteSubmitted: c.votes.some(v => v.participantId === viewer.participantId),
+        // solo un numero, mai i nomi: tutti tranne il proponente, meno chi ha votato
+        ...(viewer.isPresident && { votesMissing: c.season._count.participants - 1 - c.votes.length }),
     };
 }
