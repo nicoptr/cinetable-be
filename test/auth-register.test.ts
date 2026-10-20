@@ -30,6 +30,7 @@ test("registrazione → email di verifica → verifica → cookie", async () => 
     assert.equal(r.statusCode, 201);
     assert.equal(r.json().email, "bea@x.it");
     assert.equal(r.cookies.length, 0);
+    assert.match(lastEmailTo("bea@x.it").html, /\/verify-email\?token=[0-9a-f]{64}/);
     const token = tokenFrom("bea@x.it");
     const v = await post("/auth/verify-email", { token });
     assert.equal(v.statusCode, 200);
@@ -84,7 +85,7 @@ test("reset password invalida le sessioni vecchie", async () => {
     const cookieA = { cinofili_token: (await login("password1")).cookies.find(c => c.name === "cinofili_token")!.value };
     assert.equal((await post("/auth/forgot-password", { email: "anna@x.it" })).statusCode, 204);
     const html = lastEmailTo("anna@x.it").html;
-    assert.match(html, /reimposta-password\?token=/);
+    assert.match(html, /reset-password\?token=/);
     const token = tokenFrom("anna@x.it");
     assert.equal((await post("/auth/reset-password", { token, password: "nuovapass1" })).statusCode, 204);
     assert.equal((await post("/auth/reset-password", { token, password: "altrapass1" })).statusCode, 400);

@@ -45,7 +45,7 @@ test("invito: email inviata, token mai restituito dall'API", async () => {
     assert.equal(r.json().length, 1);
     assert.equal(r.json()[0].status, "PENDING");
     assert.equal(JSON.stringify(r.json()).includes("token"), false);
-    assert.match(lastEmailTo("carlo@x.it").html, /invito\?token=[0-9a-f]{64}/);
+    assert.match(lastEmailTo("carlo@x.it").html, /invite\?token=[0-9a-f]{64}/);
     const list = await app.inject({ method: "GET", url: `${URL}/cineforums/${cf}/invitations`, cookies });
     assert.equal(list.json().length, 1);
     assert.equal(JSON.stringify(list.json()).includes("token"), false);

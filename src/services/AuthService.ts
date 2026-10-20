@@ -77,7 +77,7 @@ export class AuthService {
         if (!user) return;
         const { token, hash } = generateToken();
         await this.authTokenRepository.create(user.id, "RESET_PASSWORD", hash, expiresIn(TOKEN_TTL.RESET_PASSWORD));
-        const url = `${process.env.CLIENT_URL}/reimposta-password?token=${token}`;
+        const url = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
         await this.email.send(user.email, "Reimposta la password", resetPasswordTemplate(user.username, url));
     }
 
@@ -93,7 +93,7 @@ export class AuthService {
     }
 
     private sendVerification(user: { email: string; username: string }, token: string) {
-        const url = `${process.env.CLIENT_URL}/verifica-email?token=${token}`;
+        const url = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
         return this.email.send(user.email, "Conferma la tua email", verifyEmailTemplate(user.username, url));
     }
 

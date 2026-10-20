@@ -140,7 +140,7 @@ export class InvitationService {
     }
 
     private sendEmail(invitation: Invitation, token: string, ctx: { cineforumName: string; inviterUsername: string }) {
-        const url = `${process.env.CLIENT_URL}/invito?token=${token}`;
+        const url = `${process.env.CLIENT_URL}/invite?token=${token}`;
         return this.email.send(invitation.email, `Invito a ${ctx.cineforumName}`,
             cineforumInvitationTemplate(ctx.cineforumName, ctx.inviterUsername, url, invitation.expiresAt));
     }

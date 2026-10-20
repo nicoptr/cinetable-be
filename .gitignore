@@ -26,3 +26,4 @@ public/logs
 /public/pdf/
 /docker/postgres/populate-staging-db.sh
 .env.test
+.env.e2e
