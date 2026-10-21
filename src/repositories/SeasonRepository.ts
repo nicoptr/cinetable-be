@@ -33,8 +33,8 @@ export class SeasonRepository {
         return this.db.season.findFirst({ where: { id, cineforumId } });
     }
 
-    findFull(id: number): Promise<SeasonRow> {
-        return this.db.season.findUniqueOrThrow({ where: { id }, select: full });
+    findFull(id: number, db: Db = this.db): Promise<SeasonRow> {
+        return db.season.findUniqueOrThrow({ where: { id }, select: full });
     }
 
     /** Quanti degli id passati appartengono al cineforum. */
@@ -89,16 +89,12 @@ export class SeasonRepository {
         return count === 1;
     }
 
-    /** Transizione DRAFT → OPEN con assegnazione delle categorie; false se non era più in bozza. */
-    launch(id: number, assignments: { userId: number; categoryId: number }[]) {
-        return this.db.$transaction(async tx => {
-            const { count } = await tx.season.updateMany({ where: { id, status: "DRAFT" }, data: { status: "OPEN" } });
-            if (count === 0) return false;
-            for (const a of assignments) {
-                await tx.participant.update({ where: { seasonId_userId: { seasonId: id, userId: a.userId } }, data: { categoryId: a.categoryId } });
-            }
-            return true;
-        });
+    /** Transizione DRAFT → OPEN con assegnazione delle categorie; il chiamante tiene il lock sulla stagione. */
+    async launch(tx: Db, id: number, assignments: { userId: number; categoryId: number }[]) {
+        await tx.season.update({ where: { id }, data: { status: "OPEN" } });
+        for (const a of assignments) {
+            await tx.participant.update({ where: { seasonId_userId: { seasonId: id, userId: a.userId } }, data: { categoryId: a.categoryId } });
+        }
     }
 
     participantsWithEmail(seasonId: number) {

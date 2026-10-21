@@ -111,18 +111,21 @@ export class SeasonService {
     async launch(userId: number, cineforumId: number, seasonId: number): Promise<SeasonView> {
         await requirePresident(userId, cineforumId);
         const { season, membership } = await this.requireSeason(userId, cineforumId, seasonId);
-        if (season.status !== "DRAFT") throw new httpErrors.BadRequest("L'edizione è già stata avviata");
-
-        const current = await this.repo.findFull(season.id);
-        const problems = launchProblems(current);
-        if (problems.length) throw new httpErrors.BadRequest(`Per avviare l'edizione: ${problems.join("; ")}`);
-        const categories = current.categories.map(c => c.id);
-        const assignments = shuffle(current.participants).map((p, i) => ({ userId: p.userId, categoryId: categories[i % categories.length]! }));
-        if (!(await this.repo.launch(season.id, assignments))) throw new httpErrors.BadRequest("L'edizione è già stata avviata");
+        // stesso lock di update: bozza e completezza verificate sullo stato che si va ad avviare
+        const launched = await this.candidatures.transaction(async tx => {
+            const { status } = await this.candidatures.lockSeason(tx, season.id);
+            if (status !== "DRAFT") throw new httpErrors.BadRequest("L'edizione è già stata avviata");
+            const current = await this.repo.findFull(season.id, tx);
+            const problems = launchProblems(current);
+            if (problems.length) throw new httpErrors.BadRequest(`Per avviare l'edizione: ${problems.join("; ")}`);
+            const categories = current.categories.map(c => c.id);
+            await this.repo.launch(tx, season.id, shuffle(current.participants).map((p, i) => ({ userId: p.userId, categoryId: categories[i % categories.length]! })));
+            return current;
+        });
 
         const recipients = await this.repo.participantsWithEmail(season.id);
         await Promise.all(recipients.map(r => this.email.send(
-            r.user.email, `Sei in gara: ${season.name}`, seasonLaunchedTemplate(season.name, r.category!.name, season.candidaturesCloseAt),
+            r.user.email, `Sei in gara: ${launched.name}`, seasonLaunchedTemplate(launched.name, r.category!.name, launched.candidaturesCloseAt),
         )));
         return this.view(season.id, membership, await this.repo.findParticipant(season.id, userId));
     }
