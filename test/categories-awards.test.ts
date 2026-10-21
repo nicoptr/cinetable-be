@@ -73,7 +73,7 @@ test("premio con domanda: CRUD", async () => {
     assert.equal((await app.inject({ method: "GET", url: base, cookies: presi.cookies })).json().length, 0);
 });
 
-test("DELETE di categoria o premio usati in una rassegna → 409", async () => {
+test("DELETE di categoria o premio usati in un'edizione → 409", async () => {
     const presi = await makeUser("presi5@x.it");
     const cf = await makeCineforum(presi);
     const db = getPrismaClient();
@@ -87,13 +87,13 @@ test("DELETE di categoria o premio usati in una rassegna → 409", async () => {
     });
     const c = await app.inject({ method: "DELETE", url: `${URL}/cineforums/${cf}/categories/${cat.id}`, cookies: presi.cookies });
     assert.equal(c.statusCode, 409);
-    assert.equal(c.json().message, "Categoria usata in una rassegna");
+    assert.equal(c.json().message, "Categoria usata in un'edizione");
     const a = await app.inject({ method: "DELETE", url: `${URL}/cineforums/${cf}/awards/${award.id}`, cookies: presi.cookies });
     assert.equal(a.statusCode, 409);
-    assert.equal(a.json().message, "Premio usato in una rassegna");
+    assert.equal(a.json().message, "Premio usato in un'edizione");
 });
 
-test("PATCH di categoria o premio usati in una rassegna avviata → 409; in bozza no", async () => {
+test("PATCH di categoria o premio usati in un'edizione avviata → 409; in bozza no", async () => {
     const presi = await makeUser("presi6@x.it");
     const cf = await makeCineforum(presi);
     const db = getPrismaClient();
@@ -115,10 +115,10 @@ test("PATCH di categoria o premio usati in una rassegna avviata → 409; in bozz
         await db.season.update({ where: { id: season.id }, data: { status } });
         const c = await patchCat();
         assert.equal(c.statusCode, 409);
-        assert.equal(c.json().message, "Usata in una rassegna avviata: crea una nuova categoria");
+        assert.equal(c.json().message, "Usata in un'edizione avviata: crea una nuova categoria");
         const a = await patchAward();
         assert.equal(a.statusCode, 409);
-        assert.equal(a.json().message, "Usato in una rassegna avviata: crea un nuovo premio");
+        assert.equal(a.json().message, "Usato in un'edizione avviata: crea un nuovo premio");
     }
     assert.equal((await db.category.findUniqueOrThrow({ where: { id: cat.id } })).name, "Thriller");
     assert.equal((await db.award.findUniqueOrThrow({ where: { id: award.id } })).name, "Fotografia");

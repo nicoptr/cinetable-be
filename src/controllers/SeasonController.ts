@@ -9,11 +9,11 @@ import { Authenticate } from "@middleware/Authenticate";
 import { parseId } from "@utils/params";
 
 type Item = { id: string; seasonId: string };
-const seasonId = (p: Item) => parseId(p.seasonId, "Rassegna non trovata");
+const seasonId = (p: Item) => parseId(p.seasonId, "Edizione non trovata");
 
 @Controller({
     route: "/cineforums/:id/seasons",
-    tags: [{ name: "Seasons", description: "Seasons (rassegne) of a cineforum" }],
+    tags: [{ name: "Seasons", description: "Seasons (edizioni) of a cineforum" }],
 })
 export class SeasonController {
     constructor(private readonly service: SeasonService, private readonly results: ResultsService, private readonly summary: SummaryService) {}

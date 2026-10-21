@@ -9,14 +9,14 @@ import { findWinners } from "@utils/winners";
 
 const person = (u: { id: number; username: string; avatarUrl: string | null }) => ({ userId: u.id, username: u.username, avatarUrl: u.avatarUrl });
 
-/** Scheda di una rassegna DONE, calcolata al volo: dopo DONE i dati sorgente non cambiano più. */
+/** Scheda di un'edizione DONE, calcolata al volo: dopo DONE i dati sorgente non cambiano più. */
 @Service()
 export class SummaryService {
     constructor(private readonly seasons: SeasonService, private readonly results: ResultsService) {}
 
     async get(userId: number, cineforumId: number, seasonId: number): Promise<SeasonSummary> {
         const { season } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
-        if (season.status !== "DONE") throw new httpErrors.NotFound("Scheda disponibile a rassegna conclusa");
+        if (season.status !== "DONE") throw new httpErrors.NotFound("Scheda disponibile a edizione conclusa");
         const db = getPrismaClient();
 
         const [{ awards }, categories, participants, candidatures] = await Promise.all([

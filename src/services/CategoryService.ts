@@ -22,14 +22,14 @@ export class CategoryService {
         await requirePresident(userId, cineforumId);
         await this.find(id, cineforumId);
         // gli archivi passati non cambiano
-        if (await this.repo.countStartedSeasons(id)) throw new httpErrors.Conflict("Usata in una rassegna avviata: crea una nuova categoria");
+        if (await this.repo.countStartedSeasons(id)) throw new httpErrors.Conflict("Usata in un'edizione avviata: crea una nuova categoria");
         return this.repo.update(id, data);
     }
 
     async delete(userId: number, cineforumId: number, id: number) {
         await requirePresident(userId, cineforumId);
         const category = await this.find(id, cineforumId);
-        if (category._count.seasons > 0) throw new httpErrors.Conflict("Categoria usata in una rassegna");
+        if (category._count.seasons > 0) throw new httpErrors.Conflict("Categoria usata in un'edizione");
         await this.repo.delete(id);
     }
 

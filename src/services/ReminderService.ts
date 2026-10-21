@@ -13,7 +13,7 @@ export class ReminderService {
 
     constructor(private readonly email: EmailSenderService) {}
 
-    /** Email a chi non ha una candidatura VALID nelle rassegne OPEN che chiudono entro 72 h. Restituisce il numero di email inviate. */
+    /** Email a chi non ha una candidatura VALID nelle edizioni OPEN che chiudono entro 72 h. Restituisce il numero di email inviate. */
     async sendDeadlineReminders(now: Date): Promise<number> {
         const seasons = await getPrismaClient().season.findMany({
             where: { status: "OPEN", candidaturesCloseAt: { gt: now, lte: new Date(now.getTime() + WINDOW_MS) } },

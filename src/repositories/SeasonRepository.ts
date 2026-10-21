@@ -28,7 +28,7 @@ export class SeasonRepository {
         return this.db.season.findMany({ where: { cineforumId }, select: summary, orderBy: { createdAt: "desc" } });
     }
 
-    /** Una rassegna di un altro cineforum non esiste: null. */
+    /** Un'edizione di un altro cineforum non esiste: null. */
     findInCineforum(id: number, cineforumId: number) {
         return this.db.season.findFirst({ where: { id, cineforumId } });
     }

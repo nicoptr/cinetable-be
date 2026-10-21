@@ -13,7 +13,7 @@ import { candidatureDuplicateTemplate } from "../templates/email/candidatureDupl
 import { screeningPlannedTemplate } from "../templates/email/screeningPlannedTemplate";
 import { shuffle } from "@utils/random";
 
-const BANNED = "Film non disponibile per questa rassegna";
+const BANNED = "Film non disponibile per questa edizione";
 
 function assertOpen(s: Pick<Season, "status" | "candidaturesCloseAt">) {
     if (s.status !== "OPEN" || s.candidaturesCloseAt <= new Date()) throw new httpErrors.BadRequest("Le candidature non sono aperte");
@@ -29,7 +29,7 @@ export class CandidatureService {
         private readonly email: EmailSenderService,
     ) {}
 
-    /** Stesso film da due partecipanti: entrambe DUPLICATE e film escluso dalla rassegna. */
+    /** Stesso film da due partecipanti: entrambe DUPLICATE e film escluso dall'edizione. */
     async submit(userId: number, cineforumId: number, seasonId: number, tmdbId: number): Promise<MyCandidatureView> {
         const { season, participant } = await this.seasons.requireParticipant(userId, cineforumId, seasonId);
         assertOpen(season);
@@ -128,7 +128,7 @@ export class CandidatureService {
     }
 
     /**
-     * Sblocca una rassegna OPEN ferma su chi non avrà mai un film valido. Il presidente vede già
+     * Sblocca un'edizione OPEN ferma su chi non avrà mai un film valido. Il presidente vede già
      * questi nomi in `progress.missing`: non trapela nulla di nuovo.
      */
     async removeParticipant(userId: number, cineforumId: number, seasonId: number, targetUserId: number): Promise<void> {
@@ -139,7 +139,7 @@ export class CandidatureService {
             const target = await this.repo.findParticipantProgress(tx, season.id, targetUserId);
             if (!target) throw new httpErrors.NotFound("Partecipante non trovato");
             if (status !== "OPEN" || target._count.candidatures > 0) throw new httpErrors.BadRequest("Puoi rimuovere solo chi non ha ancora un film valido");
-            if ((await this.repo.countParticipants(tx, season.id)) <= 2) throw new httpErrors.BadRequest("Una rassegna ha almeno 2 partecipanti");
+            if ((await this.repo.countParticipants(tx, season.id)) <= 2) throw new httpErrors.BadRequest("Un'edizione ha almeno 2 partecipanti");
             await this.repo.deleteParticipant(tx, target.id);
         });
     }

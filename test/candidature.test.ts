@@ -28,7 +28,7 @@ after(async () => {
 
 type U = Awaited<ReturnType<typeof makeUser>>;
 
-/** Presidente + 3 membri (A, B, C), tutti partecipanti, rassegna avviata. `outsider`: membro non partecipante. */
+/** Presidente + 3 membri (A, B, C), tutti partecipanti, edizione avviata. `outsider`: membro non partecipante. */
 async function setup(tag: string) {
     const presi = await makeUser(`presi-${tag}@x.it`);
     const [A, B, C, outsider] = [await makeUser(`a-${tag}@x.it`), await makeUser(`b-${tag}@x.it`), await makeUser(`c-${tag}@x.it`), await makeUser(`o-${tag}@x.it`)];
@@ -38,7 +38,7 @@ async function setup(tag: string) {
     const award = await db.award.create({ data: { cineforumId: cf, name: "Regia", question: "Regia?" } });
     const created = await app.inject({
         method: "POST", url: `${URL}/cineforums/${cf}/seasons`, cookies: presi.cookies,
-        payload: { name: `Rassegna ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: [award.id], participantUserIds: [presi.id, A.id, B.id, C.id] },
+        payload: { name: `Edizione ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: [award.id], participantUserIds: [presi.id, A.id, B.id, C.id] },
     });
     const id: number = created.json().id;
     assert.equal((await app.inject({ method: "POST", url: `${URL}/cineforums/${cf}/seasons/${id}/launch`, cookies: presi.cookies })).statusCode, 200);
@@ -79,7 +79,7 @@ test("stesso film da due persone → entrambe DUPLICATE, film escluso, due email
 
     const c = await put(C, 1091);
     assert.equal(c.statusCode, 400);
-    assert.equal(c.json().message, "Film non disponibile per questa rassegna");
+    assert.equal(c.json().message, "Film non disponibile per questa edizione");
 
     assert.deepEqual(TEST_OUTBOX.map(m => m.to).sort(), [await emailOf(A), await emailOf(B)].sort());
     for (const m of TEST_OUTBOX) {
@@ -169,7 +169,7 @@ test("scadenza passata → 400; proroga del presidente → di nuovo accettata", 
     assert.equal((await put(A, 550)).json().message, "Le candidature non sono aperte");
 });
 
-test("non partecipante → 403; estraneo → 404; rassegna di altro cineforum → 404", async () => {
+test("non partecipante → 403; estraneo → 404; edizione di altro cineforum → 404", async () => {
     const s = await setup("i");
     const other = await setup("i2");
     const stranger = await makeUser("stranger-i@x.it");
@@ -204,7 +204,7 @@ test("progress: solo il presidente, solo nomi dei mancanti, nessun film", async 
     }
 });
 
-test("la vista della rassegna non rivela film altrui", async () => {
+test("la vista dell'edizione non rivela film altrui", async () => {
     const { presi, A, put, season } = await setup("k");
     await put(A, 1091);
     const raw = (await season(presi)).body;
@@ -264,5 +264,5 @@ test("rimozione: restano almeno 2 partecipanti", async () => {
     assert.equal((await remove(B)).statusCode, 204);
     const last = await remove(A);
     assert.equal(last.statusCode, 400);
-    assert.equal(last.json().message, "Una rassegna ha almeno 2 partecipanti");
+    assert.equal(last.json().message, "Un'edizione ha almeno 2 partecipanti");
 });

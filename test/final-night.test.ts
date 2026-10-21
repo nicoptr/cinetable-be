@@ -27,7 +27,7 @@ after(async () => {
 type U = Awaited<ReturnType<typeof makeUser>>;
 
 /**
- * Rassegna con premi Regia e Trama, `reveal` film svelati, proiettati e col voto aperto.
+ * Edizione con premi Regia e Trama, `reveal` film svelati, proiettati e col voto aperto.
  * Voti (se tutti svelati): Regia premia il film di A (90, 90, 91 → 90.3), Trama vede B e C a pari merito (80).
  * C non vota il film del presidente: resta un voto da dare.
  */
@@ -45,7 +45,7 @@ async function setup(tag: string, reveal = 4) {
     const other = await db.award.create({ data: { cineforumId: cf, name: "Estraneo", question: "Estraneo?" } });
     const created = await app.inject({
         method: "POST", url: `${URL}/cineforums/${cf}/seasons`, cookies: presi.cookies,
-        payload: { name: `Rassegna ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: [regia!.id, trama!.id], participantUserIds: users.map(u => u.id) },
+        payload: { name: `Edizione ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: [regia!.id, trama!.id], participantUserIds: users.map(u => u.id) },
     });
     const id: number = created.json().id;
     const base = `${URL}/cineforums/${cf}/seasons/${id}`;
@@ -174,13 +174,13 @@ test("riaprire la stessa busta restituisce lo stesso risultato", async () => {
     assert.deepEqual((await s.open(s.trama.id)).json(), first);
     await s.open(s.regia.id);
     assert.equal((await s.season(s.A)).json().status, "DONE");
-    // anche a rassegna conclusa
+    // anche a edizione conclusa
     const again = await s.open(s.trama.id);
     assert.equal(again.statusCode, 200);
     assert.deepEqual(again.json(), first);
 });
 
-test("aperture simultanee di buste diverse: entrambe aperte, rassegna DONE", async () => {
+test("aperture simultanee di buste diverse: entrambe aperte, edizione DONE", async () => {
     const s = await setup("e");
     const rs = await Promise.all([s.open(s.regia.id), s.open(s.trama.id)]);
     assert.deepEqual(rs.map(r => r.statusCode), [200, 200]);

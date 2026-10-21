@@ -8,7 +8,7 @@ import { Authenticate } from "@middleware/Authenticate";
 import { parseId } from "@utils/params";
 
 type Params = { id: string; seasonId: string };
-const ids = (p: Params) => [parseId(p.id), parseId(p.seasonId, "Rassegna non trovata")] as const;
+const ids = (p: Params) => [parseId(p.id), parseId(p.seasonId, "Edizione non trovata")] as const;
 
 @Controller({
     route: "/cineforums/:id/seasons/:seasonId",

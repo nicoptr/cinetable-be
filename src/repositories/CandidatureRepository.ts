@@ -11,7 +11,7 @@ export class CandidatureRepository {
         return getPrismaClient().$transaction(fn);
     }
 
-    /** Blocca la riga della rassegna fino al commit: le candidature della stessa rassegna passano una alla volta. */
+    /** Blocca la riga dell'edizione fino al commit: le candidature della stessa edizione passano una alla volta. */
     async lockSeason(tx: Db, seasonId: number): Promise<Pick<Season, "status" | "candidaturesCloseAt">> {
         const rows = await tx.$queryRaw<Pick<Season, "status" | "candidaturesCloseAt">[]>`SELECT status, "candidaturesCloseAt" FROM "Season" WHERE id = ${seasonId} FOR UPDATE`;
         return rows[0]!;
@@ -66,7 +66,7 @@ export class CandidatureRepository {
         return tx.candidature.findMany({ where: { seasonId, status: "VALID" }, select: { id: true } });
     }
 
-    /** Fissa l'ordine di proiezione (1..n) e passa la rassegna in programmazione. */
+    /** Fissa l'ordine di proiezione (1..n) e passa l'edizione in programmazione. */
     async startScreening(tx: Db, seasonId: number, orderedIds: number[]) {
         for (const [i, id] of orderedIds.entries()) await tx.candidature.update({ where: { id }, data: { projectionOrder: i + 1 } });
         await tx.season.update({ where: { id: seasonId }, data: { status: "SCREENING" } });
@@ -94,7 +94,7 @@ export class CandidatureRepository {
         return getPrismaClient().candidature.findUniqueOrThrow({ where: { id }, select: programSelect });
     }
 
-    /** Per ordine di proiezione: un film non svelato o di un'altra rassegna non esiste, null. `id` resta interno. */
+    /** Per ordine di proiezione: un film non svelato o di un'altra edizione non esiste, null. `id` resta interno. */
     findRevealed(seasonId: number, order: number) {
         return getPrismaClient().candidature.findFirst({
             where: { seasonId, projectionOrder: order, revealedAt: { not: null } },

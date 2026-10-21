@@ -12,7 +12,7 @@
  *   invito 1 PENDING a ospite@e2e.it per il cineforum 1 (token INVITE_TOKEN_NEW)
  *   cineforum 2 "Cineclub di Dario" (dario PRESIDENT, unico membro), invito 2 PENDING a carla@e2e.it (token INVITE_TOKEN_CARLA)
  *   utente 5 `nuovo` (nuovo@e2e.it) non verificato, token di verifica VERIFY_TOKEN
- * open      = base + rassegna 1 "Stagione 1" OPEN, scadenza +7 giorni, serata finale +30 giorni, 4 partecipanti,
+ * open      = base + edizione 1 "Stagione 1" OPEN, scadenza +7 giorni, serata finale +30 giorni, 4 partecipanti,
  *             anna/carla → Horror anni '80, bruno/dario → Commedia italiana, entrambi i premi
  * screening = open + candidature VALID (anna 1091, bruno 620, carla 550, dario 11216), scadenza nel passato;
  *             stato ancora OPEN: il primo reveal-next fissa l'ordine e passa a SCREENING, come in produzione

@@ -26,7 +26,7 @@ after(async () => {
 
 type U = Awaited<ReturnType<typeof makeUser>>;
 
-/** Rassegna con due premi, primo film svelato e già proiettato (voto non ancora aperto). */
+/** Edizione con due premi, primo film svelato e già proiettato (voto non ancora aperto). */
 async function setup(tag: string) {
     const db = getPrismaClient();
     const presi = await makeUser(`presi-${tag}@x.it`);
@@ -41,7 +41,7 @@ async function setup(tag: string) {
     const other = await db.award.create({ data: { cineforumId: cf, name: "Estraneo", question: "Estraneo?" } });
     const created = await app.inject({
         method: "POST", url: `${URL}/cineforums/${cf}/seasons`, cookies: presi.cookies,
-        payload: { name: `Rassegna ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: awards.map(a => a.id), participantUserIds: users.map(u => u.id) },
+        payload: { name: `Edizione ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: awards.map(a => a.id), participantUserIds: users.map(u => u.id) },
     });
     const id: number = created.json().id;
     const base = `${URL}/cineforums/${cf}/seasons/${id}`;

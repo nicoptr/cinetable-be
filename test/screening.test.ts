@@ -26,7 +26,7 @@ after(async () => {
 
 type U = Awaited<ReturnType<typeof makeUser>>;
 
-/** Presidente + A, B, C partecipanti, rassegna avviata. `candidate`: ognuno candida un film diverso e la scadenza passa. */
+/** Presidente + A, B, C partecipanti, edizione avviata. `candidate`: ognuno candida un film diverso e la scadenza passa. */
 async function setup(tag: string, candidate = true) {
     const presi = await makeUser(`presi-${tag}@x.it`);
     const [A, B, C] = [await makeUser(`a-${tag}@x.it`), await makeUser(`b-${tag}@x.it`), await makeUser(`c-${tag}@x.it`)];
@@ -37,7 +37,7 @@ async function setup(tag: string, candidate = true) {
     const award = await db.award.create({ data: { cineforumId: cf, name: "Regia", question: "Regia?" } });
     const created = await app.inject({
         method: "POST", url: `${URL}/cineforums/${cf}/seasons`, cookies: presi.cookies,
-        payload: { name: `Rassegna ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: [award.id], participantUserIds: users.map(u => u.id) },
+        payload: { name: `Edizione ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: [award.id], participantUserIds: users.map(u => u.id) },
     });
     const id: number = created.json().id;
     const base = `${URL}/cineforums/${cf}/seasons/${id}`;

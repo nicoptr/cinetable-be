@@ -22,7 +22,7 @@ export class VoteService {
         private readonly email: EmailSenderService,
     ) {}
 
-    /** Come planScreening: non svelata o di un'altra rassegna è indistinguibile da inesistente. */
+    /** Come planScreening: non svelata o di un'altra edizione è indistinguibile da inesistente. */
     private async requireRevealed(seasonId: number, order: number) {
         const c = await this.candidatures.findRevealed(seasonId, order);
         if (!c) throw new httpErrors.NotFound("Film non trovato");

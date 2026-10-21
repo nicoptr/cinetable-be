@@ -31,7 +31,7 @@ test("promemoria solo a chi non ha una candidatura valida, solo entro 72 h", asy
         },
         include: { participants: true },
     });
-    const open = await mk("Rassegna <i>", "OPEN", 48);
+    const open = await mk("Edizione <i>", "OPEN", 48);
     const part = (u: { id: number }) => open.participants.find(p => p.userId === u.id)!;
     await db.candidature.create({ data: { seasonId: open.id, participantId: part(A).id, tmdbId: 1, status: "VALID" } });
     await db.candidature.create({ data: { seasonId: open.id, participantId: part(B).id, tmdbId: 2, status: "DUPLICATE" } });
@@ -44,7 +44,7 @@ test("promemoria solo a chi non ha una candidatura valida, solo entro 72 h", asy
     assert.deepEqual(TEST_OUTBOX.map(m => m.to).sort(), ["b-rem@x.it", "c-rem@x.it"]);
     for (const m of TEST_OUTBOX) {
         assert.equal(m.subject, "Promemoria: candida il tuo film");
-        assert.match(m.html, /Rassegna &lt;i&gt;/);
+        assert.match(m.html, /Edizione &lt;i&gt;/);
         assert.match(m.html, /Horror &lt;b&gt;/);
     }
 });

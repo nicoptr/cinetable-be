@@ -32,7 +32,7 @@ const proposerOf = (f: Film) => ({ userId: f.participant.userId, username: f.par
 export class ResultsService {
     constructor(private readonly candidatures: CandidatureRepository, private readonly seasons: SeasonService) {}
 
-    /** Apre una busta. La prima porta la rassegna in FINAL (voti chiusi), l'ultima in DONE. */
+    /** Apre una busta. La prima porta l'edizione in FINAL (voti chiusi), l'ultima in DONE. */
     async open(userId: number, cineforumId: number, seasonId: number, awardId: number): Promise<AwardResult> {
         await requirePresident(userId, cineforumId);
         const { season } = await this.seasons.requireSeason(userId, cineforumId, seasonId);

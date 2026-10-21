@@ -58,7 +58,7 @@ test("nessuna risposta del gioco tradisce film non svelati o proponenti", async 
     ];
     const created = await app.inject({
         method: "POST", url: `${URL}/cineforums/${cf}/seasons`, cookies: presi.cookies,
-        payload: { name: "Rassegna segreta", candidaturesCloseAt: days(7), categoryIds: cats.map(c => c.id), awardIds: [regia.id, trama.id], participantUserIds: users.map(u => u.id) },
+        payload: { name: "Edizione segreta", candidaturesCloseAt: days(7), categoryIds: cats.map(c => c.id), awardIds: [regia.id, trama.id], participantUserIds: users.map(u => u.id) },
     });
     const id: number = created.json().id;
     const base = `${URL}/cineforums/${cf}/seasons/${id}`;

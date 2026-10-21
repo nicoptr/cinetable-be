@@ -38,7 +38,7 @@ async function setup(tag: string) {
     const trama = await db.award.create({ data: { cineforumId: cf, name: "Trama", question: "Trama?" } });
     const created = await app.inject({
         method: "POST", url: `${URL}/cineforums/${cf}/seasons`, cookies: presi.cookies,
-        payload: { name: `Rassegna ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: [regia.id, trama.id], participantUserIds: users.map(u => u.id) },
+        payload: { name: `Edizione ${tag}`, candidaturesCloseAt: days(7), categoryIds: [category.id], awardIds: [regia.id, trama.id], participantUserIds: users.map(u => u.id) },
     });
     const id: number = created.json().id;
     const base = `${URL}/cineforums/${cf}/seasons/${id}`;
@@ -71,11 +71,11 @@ async function setup(tag: string) {
     return { presi, A, B, C, regia, trama, cf, id, base, films, open, summary };
 }
 
-test("scheda disponibile solo a rassegna conclusa", async () => {
+test("scheda disponibile solo a edizione conclusa", async () => {
     const s = await setup("a");
     const early = await s.summary(s.A);
     assert.equal(early.statusCode, 404);
-    assert.equal(early.json().message, "Scheda disponibile a rassegna conclusa");
+    assert.equal(early.json().message, "Scheda disponibile a edizione conclusa");
     await s.open(s.regia.id);
     assert.equal((await s.summary(s.A)).statusCode, 404);
     await s.open(s.trama.id);
@@ -89,7 +89,7 @@ test("scheda completa: film in ordine con proponente, medie per premio, vincitor
     const res = await s.summary(s.B);
     const body = res.json();
     assert.equal(body.season.id, s.id);
-    assert.equal(body.season.name, "Rassegna b");
+    assert.equal(body.season.name, "Edizione b");
     assert.ok(!Number.isNaN(Date.parse(body.season.concludedAt)));
     assert.equal(body.categories.length, 1);
     assert.equal(body.participants.length, 4);
@@ -141,7 +141,7 @@ test("la scheda resta uguale nel tempo", async () => {
     await s.open(s.trama.id);
     const first = (await s.summary(s.A)).json();
     assert.deepEqual((await s.summary(s.A)).json(), first);
-    // il film del presidente: C non l'ha votato, quindi l'unico motivo di rifiuto è la rassegna chiusa
+    // il film del presidente: C non l'ha votato, quindi l'unico motivo di rifiuto è l'edizione chiusa
     const vote = await app.inject({
         method: "POST", url: `${s.base}/program/${s.films.find(f => f.proposer === s.presi)!.order}/votes`, cookies: s.C.cookies,
         payload: { votes: [{ awardId: s.regia.id, value: 1 }, { awardId: s.trama.id, value: 1 }] },
@@ -152,12 +152,12 @@ test("la scheda resta uguale nel tempo", async () => {
     const del = await app.inject({ method: "DELETE", url: `${URL}/cineforums/${s.cf}/awards/${s.regia.id}`, cookies: s.presi.cookies });
     assert.equal(del.statusCode, 409);
     assert.deepEqual((await s.summary(s.B)).json(), first);
-    // è nell'elenco delle rassegne
+    // è nell'elenco delle edizioni
     const list = await app.inject({ method: "GET", url: `${URL}/cineforums/${s.cf}/seasons`, cookies: s.A.cookies });
     assert.equal(list.json().find((x: { id: number }) => x.id === s.id).status, "DONE");
 });
 
-test("estraneo → 404; rassegna di un altro cineforum → 404", async () => {
+test("estraneo → 404; edizione di un altro cineforum → 404", async () => {
     const s = await setup("e");
     await s.open(s.regia.id);
     await s.open(s.trama.id);
