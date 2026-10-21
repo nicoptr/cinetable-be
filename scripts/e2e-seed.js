@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Seed deterministico per gli e2e del frontend: `node scripts/e2e-seed.js <base|open|screening|final|done>`.
+ * Seed deterministico per gli e2e del frontend: `node scripts/e2e-seed.js <base|open|late|screening|final|done>`.
  * Legge DATABASE_URL da `.env.e2e` e rifiuta qualsiasi DB il cui nome non finisca con `_e2e`.
  * Svuota tutte le tabelle (RESTART IDENTITY) e ricrea tutto sempre nello stesso ordine: gli id sono fissi.
  *
@@ -14,6 +14,7 @@
  *   utente 5 `nuovo` (nuovo@e2e.it) non verificato, token di verifica VERIFY_TOKEN
  * open      = base + edizione 1 "Stagione 1" OPEN, scadenza +7 giorni, serata finale +30 giorni, 4 partecipanti,
  *             anna/carla → Horror anni '80, bruno/dario → Commedia italiana, entrambi i premi
+ * late      = open + candidature VALID solo di anna (1091) e bruno (620), scadenza nel passato: carla e dario mancano
  * screening = open + candidature VALID (anna 1091, bruno 620, carla 550, dario 11216), scadenza nel passato;
  *             stato ancora OPEN: il primo reveal-next fissa l'ordine e passa a SCREENING, come in produzione
  * final     = screening + ordine fisso e tutte svelate: 1 La cosa (anna), 2 Ghostbusters (bruno),
@@ -41,8 +42,9 @@ const PASSWORD = "password-e2e";
 
 const SCENARIOS = ["base", "open", "screening", "final", "done"];
 const scenario = process.argv[2];
-if (!SCENARIOS.includes(scenario)) {
-    console.error(`Uso: node scripts/e2e-seed.js <${SCENARIOS.join("|")}>`);
+const late = scenario === "late";
+if (!SCENARIOS.includes(scenario) && !late) {
+    console.error(`Uso: node scripts/e2e-seed.js <${[...SCENARIOS, "late"].join("|")}>`);
     process.exit(1);
 }
 const dbName = (() => {
@@ -60,7 +62,7 @@ if (!/_e2e$/.test(dbName)) {
 const sha256 = t => createHash("sha256").update(t).digest("hex");
 const DAY = 86400000;
 const at = days => new Date(Date.now() + days * DAY);
-const level = SCENARIOS.indexOf(scenario);
+const level = late ? 2 : SCENARIOS.indexOf(scenario);
 
 const MOVIES = [
     { tmdbId: 1091, title: "La cosa", originalTitle: "The Thing", year: 1982, posterPath: "/tzGY49kseSE9QAKk47uuDGwnSCu.jpg" },
@@ -124,11 +126,11 @@ async function main(db) {
     if (level < 2) return;
 
     const candidatures = {};
-    for (const [name, , tmdbId] of PLAYERS) {
+    for (const [name, , tmdbId] of late ? PLAYERS.slice(0, 2) : PLAYERS) {
         candidatures[tmdbId] = await db.candidature.create({ data: { seasonId: season.id, participantId: participants[name].id, tmdbId } });
     }
     await db.season.update({ where: { id: season.id }, data: { candidaturesCloseAt: at(-1) } });
-    if (level < 3) return;
+    if (late || level < 3) return;
 
     const yesterday = at(-1);
     for (const [i, tmdbId] of PROJECTION.entries()) {
