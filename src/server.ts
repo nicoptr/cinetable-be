@@ -156,7 +156,7 @@ export class APIServer {
         });
         this.server.register(fastifyJwt, {
             secret: process.env.JWT_SECRET!,
-            cookie: { cookieName: "cinofili_token", signed: false },
+            cookie: { cookieName: "cinetable_token", signed: false },
             verify: { onlyCookie: true },
             sign: { expiresIn: "7d" },
         });
@@ -198,7 +198,7 @@ export class APIServer {
                     securitySchemes: {
                         cookieAuth: {
                             type: "apiKey",
-                            name: "cinofili_token",
+                            name: "cinetable_token",
                             in: "cookie",
                         },
                     },
@@ -213,7 +213,7 @@ export class APIServer {
             staticCSP:
                 "default-src 'self'; base-uri 'self'; font-src 'self' https: data:; frame-ancestors 'self'; img-src 'self' data: validator.swagger.io; object-src 'none'; script-src 'self' 'unsafe-inline'; script-src-attr 'none'; style-src 'self' fonts.googleapis.com; upgrade-insecure-requests;",
             theme: {
-                title: "Cinofili API",
+                title: "Cinetable API",
             },
             initOAuth: undefined,
             uiConfig: {

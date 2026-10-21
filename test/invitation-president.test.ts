@@ -27,7 +27,7 @@ async function loginAs(email: string) {
         method: "POST", url: `${URL}/auth/login`, remoteAddress: `10.2.0.${++ipCounter}`,
         payload: { usernameOrEmail: email, password: "password1" },
     });
-    return { userId: user.id, cookies: { cinofili_token: res.cookies.find(c => c.name === "cinofili_token")!.value } };
+    return { userId: user.id, cookies: { cinetable_token: res.cookies.find(c => c.name === "cinetable_token")!.value } };
 }
 async function setup(presEmail: string, name = "Club") {
     const { cookies, userId } = await loginAs(presEmail);

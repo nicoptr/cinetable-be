@@ -16,7 +16,7 @@ after(async () => {
 });
 
 let ip = 0;
-const cookieOf = (res: { cookies: { name: string; value: string }[] }) => ({ cinofili_token: res.cookies.find(c => c.name === "cinofili_token")!.value });
+const cookieOf = (res: { cookies: { name: string; value: string }[] }) => ({ cinetable_token: res.cookies.find(c => c.name === "cinetable_token")!.value });
 async function loginAs(email: string) {
     const user = await getPrismaClient().user.create({
         data: { username: email.split("@")[0]!, email, password: encryptPasswordSync("password1"), emailVerifiedAt: new Date() },

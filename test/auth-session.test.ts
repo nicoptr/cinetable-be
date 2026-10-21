@@ -25,14 +25,14 @@ const login = (usernameOrEmail: string, password = "password1", remoteAddress = 
 
 async function sessionCookie() {
     const res = await login("anna@x.it");
-    const c = res.cookies.find(c => c.name === "cinofili_token")!;
-    return { cinofili_token: c.value };
+    const c = res.cookies.find(c => c.name === "cinetable_token")!;
+    return { cinetable_token: c.value };
 }
 
 test("login imposta cookie httpOnly e il JWT non contiene dati sensibili", async () => {
     const res = await login("anna@x.it");
     assert.equal(res.statusCode, 200);
-    const c = res.cookies.find(c => c.name === "cinofili_token")!;
+    const c = res.cookies.find(c => c.name === "cinetable_token")!;
     assert.equal(c.httpOnly, true);
     assert.equal(c.sameSite, "Lax");
     const payload = JSON.parse(Buffer.from(c.value.split(".")[1]!, "base64url").toString());
@@ -65,7 +65,7 @@ test("me con tokenVersion cambiata → 401", async () => {
 test("logout cancella il cookie", async () => {
     const res = await app.inject({ method: "POST", url: `${URL}/logout`, cookies: await sessionCookie() });
     assert.equal(res.statusCode, 204);
-    const c = res.cookies.find(c => c.name === "cinofili_token")!;
+    const c = res.cookies.find(c => c.name === "cinetable_token")!;
     assert.ok(c.value === "" || c.maxAge === 0);
 });
 
@@ -101,7 +101,7 @@ test("l'11a login dallo stesso IP → 429", async () => {
 });
 
 test("JWT valido in header Bearer senza cookie → 401", async () => {
-    const { cinofili_token } = await sessionCookie();
-    const res = await app.inject({ method: "GET", url: `${URL}/me`, headers: { authorization: `Bearer ${cinofili_token}` } });
+    const { cinetable_token } = await sessionCookie();
+    const res = await app.inject({ method: "GET", url: `${URL}/me`, headers: { authorization: `Bearer ${cinetable_token}` } });
     assert.equal(res.statusCode, 401);
 });

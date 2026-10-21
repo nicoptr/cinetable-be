@@ -1,6 +1,6 @@
 import { FastifyReply } from "fastify";
 
-export const SESSION_COOKIE = "cinofili_token";
+export const SESSION_COOKIE = "cinetable_token";
 const SEVEN_DAYS = 7 * 24 * 60 * 60;
 
 const cookieOptions = () => ({

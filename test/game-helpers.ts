@@ -17,7 +17,7 @@ export async function makeUser(email: string): Promise<{ id: number; cookies: Re
         method: "POST", url: "/sub/api/auth/login", remoteAddress: `10.2.0.${++ipCounter}`,
         payload: { usernameOrEmail: email, password: "password1" },
     });
-    return { id: user.id, cookies: { cinofili_token: res.cookies.find(c => c.name === "cinofili_token")!.value } };
+    return { id: user.id, cookies: { cinetable_token: res.cookies.find(c => c.name === "cinetable_token")!.value } };
 }
 
 /** Cineforum con presidente e membri, creato via Prisma. */

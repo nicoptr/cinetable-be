@@ -1,7 +1,7 @@
 {
-	"name": "cinofili-be",
+	"name": "cinetable-be",
 	"version": "1.0.0",
-	"description": "Cinofili REST API",
+	"description": "Cinetable REST API",
 	"main": "src/server.ts",
 	"author": "Nicola Pietrangelo <nicola.pietrangelo@overzoom.it>",
 	"license": "GPLv3",

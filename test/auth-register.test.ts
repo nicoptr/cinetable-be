@@ -34,7 +34,7 @@ test("registrazione → email di verifica → verifica → cookie", async () => 
     const token = tokenFrom("bea@x.it");
     const v = await post("/auth/verify-email", { token });
     assert.equal(v.statusCode, 200);
-    assert.ok(v.cookies.find(c => c.name === "cinofili_token"));
+    assert.ok(v.cookies.find(c => c.name === "cinetable_token"));
     const again = await post("/auth/verify-email", { token });
     assert.equal(again.statusCode, 400);
     assert.equal(again.json().message, "Link non valido o scaduto");
@@ -82,7 +82,7 @@ test("resend-verification: 204 sempre, email solo se non verificato", async () =
 
 test("reset password invalida le sessioni vecchie", async () => {
     const login = (password: string) => post("/auth/login", { usernameOrEmail: "anna@x.it", password });
-    const cookieA = { cinofili_token: (await login("password1")).cookies.find(c => c.name === "cinofili_token")!.value };
+    const cookieA = { cinetable_token: (await login("password1")).cookies.find(c => c.name === "cinetable_token")!.value };
     assert.equal((await post("/auth/forgot-password", { email: "anna@x.it" })).statusCode, 204);
     const html = lastEmailTo("anna@x.it").html;
     assert.match(html, /reset-password\?token=/);
@@ -121,7 +121,7 @@ test("SMTP giù: la registrazione riesce lo stesso", async () => {
 
 test("PATCH /users/me: username e avatar https", async () => {
     const login = await post("/auth/login", { usernameOrEmail: "carl", password: "password2" });
-    const cookies = { cinofili_token: login.cookies[0]!.value };
+    const cookies = { cinetable_token: login.cookies[0]!.value };
     const patch = (payload: object) => app.inject({ method: "PATCH", url: `${URL}/users/me`, cookies, payload });
     assert.equal((await app.inject({ method: "PATCH", url: `${URL}/users/me`, payload: {} })).statusCode, 401);
     const ok = await patch({ username: "carlo", avatarUrl: "https://x.it/a.png" });
@@ -134,12 +134,12 @@ test("PATCH /users/me: username e avatar https", async () => {
 
 test("PATCH /users/me/password: cambia, invalida le altre sessioni, mantiene la corrente", async () => {
     const login = (password: string) => post("/auth/login", { usernameOrEmail: "carlo", password });
-    const old = { cinofili_token: (await login("password2")).cookies[0]!.value };
+    const old = { cinetable_token: (await login("password2")).cookies[0]!.value };
     const patch = (payload: object) => app.inject({ method: "PATCH", url: `${URL}/users/me/password`, cookies: old, payload });
     assert.equal((await patch({ currentPassword: "sbagliata1", newPassword: "terzapass1" })).statusCode, 400);
     const res = await patch({ currentPassword: "password2", newPassword: "terzapass1" });
     assert.equal(res.statusCode, 204);
-    const fresh = { cinofili_token: res.cookies.find(c => c.name === "cinofili_token")!.value };
+    const fresh = { cinetable_token: res.cookies.find(c => c.name === "cinetable_token")!.value };
     assert.equal((await app.inject({ method: "GET", url: `${URL}/auth/me`, cookies: old })).statusCode, 401);
     assert.equal((await app.inject({ method: "GET", url: `${URL}/auth/me`, cookies: fresh })).statusCode, 200);
     assert.equal((await login("terzapass1")).statusCode, 200);

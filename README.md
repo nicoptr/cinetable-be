@@ -1,4 +1,4 @@
-# CINOFILI API
+# CINETABLE API
 
 Questo progetto è un'utility creata al volo per organizzare una serata degli Oscar con gli amici.
 Permette all'admin di creare un evento e a chiunque di registrarsi e inviare una candidatura, sulla base di una categoria, in forma completamente anonima: il vincitore uscirà allo scoperto solo al momento dell'assegnazione dei premi!
@@ -73,7 +73,7 @@ Build output will be available at `/dist/`
 - In production `JWT_SECRET` (min 32 caratteri) e `CLIENT_URL` sono obbligatori, altrimenti l'avvio fallisce.
 - Topologia: frontend Next su **Vercel**, backend su un host pubblico. Vercel inoltra `/api/*` a `<backend>/sub/api/*` aggiungendo l'header `x-origin-secret`.
   - `ORIGIN_SECRET` (min 32 caratteri casuali, obbligatorio in production): ogni richiesta (qualunque path, anche le rotte inesistenti) senza `x-origin-secret` uguale riceve 403 `{ "code": "ORIGIN_FORBIDDEN" }`. È ciò che rende il backend raggiungibile solo passando da Vercel. Stesso valore nelle variabili del progetto Vercel. Assente (sviluppo, e2e) = controllo spento.
-  - `CLIENT_URL` = dominio pubblico del frontend (es. `https://cinofili.example`): serve per CORS e per i link nelle email.
+  - `CLIENT_URL` = dominio pubblico del frontend (es. `https://cinetable.example`): serve per CORS e per i link nelle email.
   - Tutte le risposte hanno `Cache-Control: no-store`.
   - **Una sola istanza** del backend: il cron dei promemoria gira nel processo, con più istanze le email partirebbero doppie.
 - Rate limit per IP e proxy (`TRUST_PROXY`):
