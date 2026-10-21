@@ -19,7 +19,7 @@ nvm use 18.15.0
 yarn install
 cp .env.example .env
 ```
-Nel `DATABASE_URL` non usare `connection_limit=1`: le operazioni del gioco tengono un lock sulla rassegna dentro una transazione e, con una sola connessione, le richieste concorrenti restano in coda fino al timeout. L'esempio usa `connection_limit=5`.
+Nel `DATABASE_URL` non usare `connection_limit=1`: le operazioni del gioco tengono un lock sull'edizione dentro una transazione e, con una sola connessione, le richieste concorrenti restano in coda fino al timeout. L'esempio usa `connection_limit=5`.
 #### IMPORTANTE
 3) Aggiungere nel proprio .yarnrc.yml la parte relativa a prisma presente nel .yarnrc.yml.example
 
@@ -71,9 +71,13 @@ Build output will be available at `/dist/`
 
 - Questa versione richiede un database **vuoto**: si riparte da zero (nessuna migrazione dei dati precedenti).
 - In production `JWT_SECRET` (min 32 caratteri) e `CLIENT_URL` sono obbligatori, altrimenti l'avvio fallisce.
+- Topologia: frontend Next su **Vercel**, backend su un host pubblico. Vercel inoltra `/api/*` a `<backend>/sub/api/*` aggiungendo l'header `x-origin-secret`.
+  - `ORIGIN_SECRET` (min 32 caratteri casuali, obbligatorio in production): ogni richiesta a `/sub/api/*` senza `x-origin-secret` uguale riceve 403 `{ "code": "ORIGIN_FORBIDDEN" }`. È ciò che rende il backend raggiungibile solo passando da Vercel. Stesso valore nelle variabili del progetto Vercel. Assente (sviluppo, e2e) = controllo spento.
+  - `CLIENT_URL` = dominio pubblico del frontend (es. `https://cinofili.example`): serve per CORS e per i link nelle email.
+  - Tutte le risposte `/sub/api/*` hanno `Cache-Control: no-store`.
+  - **Una sola istanza** del backend: il cron dei promemoria gira nel processo, con più istanze le email partirebbero doppie.
 - Rate limit per IP e proxy (`TRUST_PROXY`):
-  - Catena fidata obbligatoria: **reverse proxy di bordo** che **sovrascrive** `X-Forwarded-For` con l'indirizzo reale del client (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`) → frontend Next (inoltra `/api/*` a `/sub/api/*`) → backend. Next non aggiunge voci: inoltra l'`X-Forwarded-For` ricevuto così com'è, quindi senza un bordo che lo sovrascrive il client può scriverci quello che vuole.
-  - `TRUST_PROXY` è il **numero di proxy fidati** davanti al backend (hop count), non `true`. Con la catena sopra vale `1`: il backend fida solo il socket di Next e prende l'ultima voce di `X-Forwarded-For`, cioè quella scritta dal bordo. Ogni altro proxy fra Next e il backend che *aggiunge* il proprio peer a `X-Forwarded-For` vale un hop in più. `false` (o assente) = nessun proxy: tutti i client avrebbero l'IP di Next. `TRUST_PROXY=true` non è più valido: in production l'avvio fallisce.
-  - Il backend **non deve mai essere raggiungibile pubblicamente** (rete privata, firewall o bind su localhost): chi lo raggiunge direttamente sceglie il proprio IP con un `X-Forwarded-For` falso.
-  - Vercel: il suo edge imposta `x-forwarded-for` con l'IP reale del client, quindi fa da proxy di bordo; resta da contare gli hop fra Vercel e il backend e verificare con una richiesta di prova quale IP vede il backend prima di affidarsi ai rate limit.
+  - `TRUST_PROXY` è il **numero di proxy fidati** davanti al backend (hop count), non `true`. Con Vercel davanti vale `1`: l'edge di Vercel **sovrascrive** `x-forwarded-for` con l'IP reale del client e lo inoltra, il backend prende l'ultima voce. Ogni altro proxy fra Vercel e il backend che *aggiunge* il proprio peer a `X-Forwarded-For` vale un hop in più. `false` (o assente) = nessun proxy: tutti i client avrebbero lo stesso IP. `TRUST_PROXY=true` non è valido: in production l'avvio fallisce.
+  - Il backend è pubblico, ma chi non conosce `ORIGIN_SECRET` non lo raggiunge: un `X-Forwarded-For` falso inviato direttamente si ferma al 403. Verificare con una richiesta di prova quale IP vede il backend prima di affidarsi ai rate limit.
+  - Senza Vercel (es. nginx davanti a Next): il proxy di bordo deve sovrascrivere `X-Forwarded-For` (`proxy_set_header X-Forwarded-For $remote_addr;`) e aggiungere `x-origin-secret`.
 - Email (verifica, reset password, inviti): configurare `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` e `SMTP_FROM`. Se l'SMTP non risponde le richieste riescono comunque e l'errore viene solo registrato nei log.

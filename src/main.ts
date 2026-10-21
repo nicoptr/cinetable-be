@@ -14,6 +14,10 @@ async function start() {
         LOGGER.error("Configurazione non valida: in production servono JWT_SECRET (min 32 caratteri) e CLIENT_URL");
         process.exit(1);
     }
+    if (process.env.NODE_ENV === "production" && (process.env.ORIGIN_SECRET ?? "").length < 32) {
+        LOGGER.error("Configurazione non valida: in production serve ORIGIN_SECRET (min 32 caratteri)");
+        process.exit(1);
+    }
     if (process.env.NODE_ENV === "production" && !process.env.TMDB_API_TOKEN) {
         LOGGER.error("Configurazione non valida: in production serve TMDB_API_TOKEN");
         process.exit(1);

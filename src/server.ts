@@ -26,6 +26,9 @@ import httpErrors, { HttpError } from "http-errors";
 import { removeAnsi } from "@utils/prisma";
 import { ReminderService } from "@services/ReminderService";
 import { parseTrustProxy } from "@utils/proxy";
+import { createHash, timingSafeEqual } from "crypto";
+
+const sha256 = (v: string) => createHash("sha256").update(v).digest();
 
 export class APIServer {
     private readonly server: FastifyApplication;
@@ -38,6 +41,7 @@ export class APIServer {
             trustProxy: parseTrustProxy(process.env.TRUST_PROXY) ?? false,
         })
         this.server = app.withTypeProvider<ZodTypeProvider>();
+        this.guardApi();
         this.configureAuthentication();
         this.addSecurityConfiguration();
         if (process.env.NODE_ENV !== "production") this.configureSwagger();
@@ -125,6 +129,20 @@ export class APIServer {
                 reply.status(500).send({ error: "InternalServerError", message: "Errore imprevisto" });
             }
         );
+    }
+
+    /** `ORIGIN_SECRET` letto a ogni richiesta: assente = controllo spento (dev, e2e). */
+    private guardApi() {
+        this.server.addHook("onRequest", async (req, reply) => {
+            if (!req.url.startsWith("/sub/api")) return;
+            reply.header("Cache-Control", "no-store");
+            const secret = process.env.ORIGIN_SECRET;
+            if (!secret) return;
+            const given = req.headers["x-origin-secret"];
+            // hash: timingSafeEqual vuole lunghezze uguali e così la lunghezza del segreto non trapela
+            if (typeof given === "string" && timingSafeEqual(sha256(given), sha256(secret))) return;
+            return reply.code(403).send({ code: "ORIGIN_FORBIDDEN" });
+        });
     }
 
     private configureAuthentication() {
