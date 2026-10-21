@@ -62,7 +62,7 @@ if (!/_e2e$/.test(dbName)) {
 const sha256 = t => createHash("sha256").update(t).digest("hex");
 const DAY = 86400000;
 const at = days => new Date(Date.now() + days * DAY);
-const level = late ? 2 : SCENARIOS.indexOf(scenario);
+const level = late ? 2 : SCENARIOS.indexOf(scenario); // late = open + 2 film, scadenza passata
 
 const MOVIES = [
     { tmdbId: 1091, title: "La cosa", originalTitle: "The Thing", year: 1982, posterPath: "/tzGY49kseSE9QAKk47uuDGwnSCu.jpg" },
