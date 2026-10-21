@@ -5,7 +5,7 @@ import { SeasonRepository, SeasonRow } from "@repositories/SeasonRepository";
 import { CandidatureRepository } from "@repositories/CandidatureRepository";
 import { EmailSenderService } from "@services/EmailSenderService";
 import { SeasonDTO, SeasonListItem, SeasonUpdateDTO, SeasonView } from "@models/Season";
-import { toProgramItem } from "@models/Candidature";
+import { toNextScreening, toProgramItem } from "@models/Candidature";
 import { requireMember, requirePresident } from "@utils/membership";
 import { shuffle } from "@utils/random";
 import { seasonLaunchedTemplate } from "../templates/email/seasonLaunchedTemplate";
@@ -138,7 +138,7 @@ export class SeasonService {
     }
 
     private async view(seasonId: number, membership: Membership, participant: Participant | null): Promise<SeasonView> {
-        const s: SeasonRow = await this.repo.findFull(seasonId);
+        const [s, next] = await Promise.all([this.repo.findFull(seasonId), this.candidatures.findNextToReveal(seasonId)]);
         const viewer = { participantId: participant?.id ?? null, isPresident: membership.role === "PRESIDENT" };
         const myCategory = participant?.categoryId ? s.categories.find(c => c.id === participant.categoryId) ?? null : null;
         return {
@@ -154,6 +154,7 @@ export class SeasonService {
             program: s.candidatures.map(c => toProgramItem(c, viewer)),
             // le svelate sono VALID e dopo la chiusura non cambiano più stato
             remainingToReveal: s._count.candidatures - s.candidatures.length,
+            nextScreening: toNextScreening(next),
         };
     }
 }

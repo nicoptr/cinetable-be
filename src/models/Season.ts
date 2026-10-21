@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ProgramItemSchema } from "@models/Candidature";
+import { NextScreeningSchema, ProgramItemSchema } from "@models/Candidature";
 import { MovieViewSchema } from "@models/Movie";
 
 const ids = z.array(z.number().int().positive()).refine(a => new Set(a).size === a.length, "Valori duplicati");
@@ -41,6 +41,8 @@ export const SeasonViewSchema = SeasonListItemSchema.extend({
     /** Solo i film svelati, in ordine di proiezione. */
     program: z.array(ProgramItemSchema),
     remainingToReveal: z.number(),
+    /** Solo se il prossimo film da svelare ha già data e luogo. */
+    nextScreening: NextScreeningSchema.nullable(),
 });
 export type SeasonView = z.infer<typeof SeasonViewSchema>;
 

@@ -2,7 +2,7 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { Controller, DELETE, GET, PATCH, POST, PUT } from "fastify-decorators";
 import { CandidatureService } from "@services/CandidatureService";
 import {
-    CandidatureDTO, CandidatureInputSchema, CandidatureProgressSchema, MyCandidatureViewSchema, ProgramItemSchema, ScreeningDTO, ScreeningInputSchema,
+    CandidatureDTO, CandidatureInputSchema, CandidatureProgressSchema, MyCandidatureViewSchema, NextScreeningSchema, ProgramItemSchema, ScreeningDTO, ScreeningInputSchema,
 } from "@models/Candidature";
 import { Authenticate } from "@middleware/Authenticate";
 import { parseId } from "@utils/params";
@@ -48,6 +48,14 @@ export class CandidatureController {
     })
     async revealNext(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
         reply.status(200).send(await this.service.revealNext(req.user.id, ...ids(req.params)));
+    }
+
+    @POST("/next-screening", {
+        schema: { operationId: "scheduleNextScreening", summary: "Set date and place of the next movie before revealing it (president only)", body: ScreeningInputSchema, response: { 200: NextScreeningSchema } },
+        onRequest: [Authenticate()],
+    })
+    async scheduleNext(req: FastifyRequest<{ Params: Params; Body: ScreeningDTO }>, reply: FastifyReply) {
+        reply.status(200).send(await this.service.scheduleNext(req.user.id, ...ids(req.params), req.body));
     }
 
     @PATCH("/program/:order/screening", {

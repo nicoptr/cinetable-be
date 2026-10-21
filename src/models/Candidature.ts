@@ -21,6 +21,21 @@ export const CandidatureProgressSchema = z.object({
 export const ScreeningInputSchema = z.object({ screeningAt: z.coerce.date(), location: z.string().trim().min(1).max(200) }).strict();
 export type ScreeningDTO = z.infer<typeof ScreeningInputSchema>;
 
+/** La serata del prossimo film coperto: mai titolo, locandina, ordine o id. */
+export const NextScreeningSchema = z.object({ screeningAt: z.string(), location: z.string(), categoryName: z.string().nullable() });
+export type NextScreening = z.infer<typeof NextScreeningSchema>;
+
+export const nextToRevealSelect = {
+    id: true, screeningAt: true, location: true,
+    participant: { select: { category: { select: { name: true } } } },
+} satisfies Prisma.CandidatureSelect;
+type NextToReveal = Prisma.CandidatureGetPayload<{ select: typeof nextToRevealSelect }>;
+
+export function toNextScreening(c: NextToReveal | null): NextScreening | null {
+    if (!c?.screeningAt || !c.location) return null;
+    return { screeningAt: c.screeningAt.toISOString(), location: c.location, categoryName: c.participant.category?.name ?? null };
+}
+
 /** Quel che serve a un ProgramItem: `participantId` solo per `isMine`, non esce mai. */
 export const programSelect = {
     id: true, projectionOrder: true, screeningAt: true, location: true, votingOpenedAt: true, participantId: true,

@@ -1,7 +1,7 @@
 import { Prisma, Season } from "@prisma/client";
 import { Service } from "fastify-decorators";
 import { getPrismaClient } from "@utils/prisma";
-import { programSelect } from "@models/Candidature";
+import { nextToRevealSelect, programSelect } from "@models/Candidature";
 
 type Db = Prisma.TransactionClient;
 
@@ -76,12 +76,17 @@ export class CandidatureRepository {
     findPendingScreening(tx: Db, seasonId: number) {
         return tx.candidature.findFirst({
             where: { seasonId, status: "VALID", revealedAt: { not: null }, OR: [{ screeningAt: null }, { screeningAt: { gt: new Date() } }] },
-            select: { id: true },
+            select: { id: true, screeningAt: true },
         });
     }
 
-    findNextToReveal(tx: Db, seasonId: number) {
-        return tx.candidature.findFirst({ where: { seasonId, status: "VALID", revealedAt: null }, orderBy: { projectionOrder: "asc" }, select: { id: true } });
+    findNextToReveal(seasonId: number, db: Db = getPrismaClient()) {
+        return db.candidature.findFirst({ where: { seasonId, status: "VALID", revealedAt: null }, orderBy: { projectionOrder: "asc" }, select: nextToRevealSelect });
+    }
+
+    /** Data e luogo su una candidatura ancora coperta: restano allo svelamento. */
+    scheduleScreening(tx: Db, id: number, d: { screeningAt: Date; location: string }) {
+        return tx.candidature.update({ where: { id }, data: d, select: nextToRevealSelect });
     }
 
     /** Condizionato a `revealedAt: null`: true solo per chi lo svela davvero. */
