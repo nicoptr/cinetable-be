@@ -7,6 +7,7 @@ import { LOGGER } from "@utils/winston";
 import { seed } from "../prisma/seed";
 import process from "process";
 import { banner } from "@utils/banner";
+import { parseTrustProxy } from "@utils/proxy";
 
 async function start() {
     if (process.env.NODE_ENV === "production" && ((process.env.JWT_SECRET ?? "").length < 32 || !process.env.CLIENT_URL)) {
@@ -16,6 +17,14 @@ async function start() {
     if (process.env.NODE_ENV === "production" && !process.env.TMDB_API_TOKEN) {
         LOGGER.error("Configurazione non valida: in production serve TMDB_API_TOKEN");
         process.exit(1);
+    }
+    if (parseTrustProxy(process.env.TRUST_PROXY) === null) {
+        const msg = `TRUST_PROXY non valido ("${process.env.TRUST_PROXY}"): usare il numero di proxy fidati davanti al backend (es. 1) oppure false`;
+        if (process.env.NODE_ENV === "production") {
+            LOGGER.error(`Configurazione non valida: ${msg}`);
+            process.exit(1);
+        }
+        LOGGER.warn(`${msg}; uso false`);
     }
     console.log('\x1b[1;32m%s\x1b[0m', banner);
     const prismaClient = await initializePrismaClient();

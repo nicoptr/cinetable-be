@@ -25,6 +25,7 @@ import { FastifyApplication } from "../types";
 import httpErrors, { HttpError } from "http-errors";
 import { removeAnsi } from "@utils/prisma";
 import { ReminderService } from "@services/ReminderService";
+import { parseTrustProxy } from "@utils/proxy";
 
 export class APIServer {
     private readonly server: FastifyApplication;
@@ -34,7 +35,7 @@ export class APIServer {
             logger: process.env.NODE_ENV === 'development',
             disableRequestLogging: true,
             pluginTimeout: 100000,
-            trustProxy: process.env.TRUST_PROXY === "true",
+            trustProxy: parseTrustProxy(process.env.TRUST_PROXY) ?? false,
         })
         this.server = app.withTypeProvider<ZodTypeProvider>();
         this.configureAuthentication();

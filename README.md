@@ -50,7 +50,7 @@ cp .env.e2e.example .env.e2e     # poi inserire le credenziali del DB locale
 yarn build
 node scripts/e2e-seed.js base    # base | open | screening | final | done
 ```
-Gli e2e di `cinofili-fe` (`npm run e2e`) avviano questo backend sulla porta 5055 con `.env.e2e` (`TRUST_PROXY=true`: ogni test manda un `X-Forwarded-For` diverso, così i rate limit per IP non si sommano) e chiamano `scripts/e2e-seed.js` prima di ogni test. Lo script rifiuta un `DATABASE_URL` il cui nome del database non finisca con `_e2e`, svuota tutte le tabelle e ricrea sempre gli stessi dati con gli stessi id; scenari, token fissi e voti attesi sono descritti in testa al file.
+Gli e2e di `cinofili-fe` (`npm run e2e`) avviano questo backend sulla porta 5055 con `.env.e2e` (`TRUST_PROXY=1`: Next è l'unico hop e inoltra così com'è l'`X-Forwarded-For` diverso che ogni test manda, così i rate limit per IP non si sommano) e chiamano `scripts/e2e-seed.js` prima di ogni test. Lo script rifiuta un `DATABASE_URL` il cui nome del database non finisca con `_e2e`, svuota tutte le tabelle e ricrea sempre gli stessi dati con gli stessi id; scenari, token fissi e voti attesi sono descritti in testa al file.
 
 Swagger documentation is available at `http://localhost:5000/docs`
 
@@ -71,5 +71,9 @@ Build output will be available at `/dist/`
 
 - Questa versione richiede un database **vuoto**: si riparte da zero (nessuna migrazione dei dati precedenti).
 - In production `JWT_SECRET` (min 32 caratteri) e `CLIENT_URL` sono obbligatori, altrimenti l'avvio fallisce.
-- Il backend gira dietro il frontend Next (che inoltra `/api/*` a `/sub/api/*`) con `TRUST_PROXY=true`, altrimenti i rate limit per IP vedono solo l'IP del proxy. Con `TRUST_PROXY=true` il backend **non deve essere raggiungibile direttamente** da Internet: chiunque potrebbe inviare un `X-Forwarded-For` falso e aggirare i rate limit. Esporre solo il frontend (rete privata, firewall o bind su localhost).
+- Rate limit per IP e proxy (`TRUST_PROXY`):
+  - Catena fidata obbligatoria: **reverse proxy di bordo** che **sovrascrive** `X-Forwarded-For` con l'indirizzo reale del client (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`) → frontend Next (inoltra `/api/*` a `/sub/api/*`) → backend. Next non aggiunge voci: inoltra l'`X-Forwarded-For` ricevuto così com'è, quindi senza un bordo che lo sovrascrive il client può scriverci quello che vuole.
+  - `TRUST_PROXY` è il **numero di proxy fidati** davanti al backend (hop count), non `true`. Con la catena sopra vale `1`: il backend fida solo il socket di Next e prende l'ultima voce di `X-Forwarded-For`, cioè quella scritta dal bordo. Ogni altro proxy fra Next e il backend che *aggiunge* il proprio peer a `X-Forwarded-For` vale un hop in più. `false` (o assente) = nessun proxy: tutti i client avrebbero l'IP di Next. `TRUST_PROXY=true` non è più valido: in production l'avvio fallisce.
+  - Il backend **non deve mai essere raggiungibile pubblicamente** (rete privata, firewall o bind su localhost): chi lo raggiunge direttamente sceglie il proprio IP con un `X-Forwarded-For` falso.
+  - Vercel: il suo edge imposta `x-forwarded-for` con l'IP reale del client, quindi fa da proxy di bordo; resta da contare gli hop fra Vercel e il backend e verificare con una richiesta di prova quale IP vede il backend prima di affidarsi ai rate limit.
 - Email (verifica, reset password, inviti): configurare `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` e `SMTP_FROM`. Se l'SMTP non risponde le richieste riescono comunque e l'errore viene solo registrato nei log.
