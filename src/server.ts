@@ -131,10 +131,12 @@ export class APIServer {
         );
     }
 
-    /** `ORIGIN_SECRET` letto a ogni richiesta: assente = controllo spento (dev, e2e). */
+    /**
+     * Su ogni richiesta, non solo `/sub/api`: il router decodifica il path (`/sub/%61pi`), un controllo sull'URL grezzo si aggira.
+     * `ORIGIN_SECRET` letto a ogni richiesta: assente = controllo spento (dev, e2e).
+     */
     private guardApi() {
         this.server.addHook("onRequest", async (req, reply) => {
-            if (!req.url.startsWith("/sub/api")) return;
             reply.header("Cache-Control", "no-store");
             const secret = process.env.ORIGIN_SECRET;
             if (!secret) return;

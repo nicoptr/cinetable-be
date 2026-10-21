@@ -72,12 +72,12 @@ Build output will be available at `/dist/`
 - Questa versione richiede un database **vuoto**: si riparte da zero (nessuna migrazione dei dati precedenti).
 - In production `JWT_SECRET` (min 32 caratteri) e `CLIENT_URL` sono obbligatori, altrimenti l'avvio fallisce.
 - Topologia: frontend Next su **Vercel**, backend su un host pubblico. Vercel inoltra `/api/*` a `<backend>/sub/api/*` aggiungendo l'header `x-origin-secret`.
-  - `ORIGIN_SECRET` (min 32 caratteri casuali, obbligatorio in production): ogni richiesta a `/sub/api/*` senza `x-origin-secret` uguale riceve 403 `{ "code": "ORIGIN_FORBIDDEN" }`. È ciò che rende il backend raggiungibile solo passando da Vercel. Stesso valore nelle variabili del progetto Vercel. Assente (sviluppo, e2e) = controllo spento.
+  - `ORIGIN_SECRET` (min 32 caratteri casuali, obbligatorio in production): ogni richiesta (qualunque path, anche le rotte inesistenti) senza `x-origin-secret` uguale riceve 403 `{ "code": "ORIGIN_FORBIDDEN" }`. È ciò che rende il backend raggiungibile solo passando da Vercel. Stesso valore nelle variabili del progetto Vercel. Assente (sviluppo, e2e) = controllo spento.
   - `CLIENT_URL` = dominio pubblico del frontend (es. `https://cinofili.example`): serve per CORS e per i link nelle email.
-  - Tutte le risposte `/sub/api/*` hanno `Cache-Control: no-store`.
+  - Tutte le risposte hanno `Cache-Control: no-store`.
   - **Una sola istanza** del backend: il cron dei promemoria gira nel processo, con più istanze le email partirebbero doppie.
 - Rate limit per IP e proxy (`TRUST_PROXY`):
   - `TRUST_PROXY` è il **numero di proxy fidati** davanti al backend (hop count), non `true`. Con Vercel davanti vale `1`: l'edge di Vercel **sovrascrive** `x-forwarded-for` con l'IP reale del client e lo inoltra, il backend prende l'ultima voce. Ogni altro proxy fra Vercel e il backend che *aggiunge* il proprio peer a `X-Forwarded-For` vale un hop in più. `false` (o assente) = nessun proxy: tutti i client avrebbero lo stesso IP. `TRUST_PROXY=true` non è valido: in production l'avvio fallisce.
-  - Il backend è pubblico, ma chi non conosce `ORIGIN_SECRET` non lo raggiunge: un `X-Forwarded-For` falso inviato direttamente si ferma al 403. Verificare con una richiesta di prova quale IP vede il backend prima di affidarsi ai rate limit.
+  - Il backend è pubblico, ma chi non conosce `ORIGIN_SECRET` non raggiunge nessuna rotta: un `X-Forwarded-For` falso inviato direttamente si ferma al 403. Verificare con una richiesta di prova quale IP vede il backend prima di affidarsi ai rate limit.
   - Senza Vercel (es. nginx davanti a Next): il proxy di bordo deve sovrascrivere `X-Forwarded-For` (`proxy_set_header X-Forwarded-For $remote_addr;`) e aggiungere `x-origin-secret`.
 - Email (verifica, reset password, inviti): configurare `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` e `SMTP_FROM`. Se l'SMTP non risponde le richieste riescono comunque e l'errore viene solo registrato nei log.

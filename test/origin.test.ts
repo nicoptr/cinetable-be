@@ -7,7 +7,7 @@ after(async () => {
     await getPrismaClient().$disconnect();
 });
 
-const me = (headers: Record<string, string> = {}) => buildApp().then(app => app.inject({ method: "GET", url: "/sub/api/auth/me", headers }));
+const me = (headers: Record<string, string> = {}, url = "/sub/api/auth/me") => buildApp().then(app => app.inject({ method: "GET", url, headers }));
 
 test("senza ORIGIN_SECRET il controllo è spento; Cache-Control: no-store", async () => {
     const res = await me();
@@ -24,7 +24,14 @@ test("con ORIGIN_SECRET serve l'header x-origin-secret uguale", async () => {
             assert.equal(res.json().code, "ORIGIN_FORBIDDEN");
             assert.equal(res.headers["cache-control"], "no-store");
         }
+        for (const url of ["/sub/%61pi/auth/me", "/%73ub/api/auth/me", "/non-esiste"]) {
+            const res = await me({}, url);
+            assert.equal(res.statusCode, 403, url);
+            assert.equal(res.json().code, "ORIGIN_FORBIDDEN");
+            assert.equal(res.headers["cache-control"], "no-store");
+        }
         assert.equal((await me({ "x-origin-secret": "segreto-di-prova" })).statusCode, 401);
+        assert.equal((await me({ "x-origin-secret": "segreto-di-prova" }, "/non-esiste")).statusCode, 404);
     } finally {
         delete process.env.ORIGIN_SECRET;
     }
