@@ -156,6 +156,8 @@ export class CandidatureService {
         if (revealed.screeningAt && revealed.screeningAt <= new Date()) throw new httpErrors.BadRequest("Proiezione già avvenuta");
         // senza data si può registrare una proiezione già avvenuta; una data futura non si sposta nel passato
         if (revealed.screeningAt && data.screeningAt < new Date()) throw new httpErrors.BadRequest("La proiezione non può essere nel passato");
+        const next = await this.repo.findNextToReveal(season.id);
+        if (next?.screeningAt && data.screeningAt >= next.screeningAt) throw new httpErrors.BadRequest("La proiezione deve essere prima di quella già programmata per il prossimo film");
 
         const row = await this.repo.planScreening(revealed.id, data);
         await this.sendToParticipants(season.id, "Prossima proiezione", screeningPlannedTemplate(row.movie.title, data.screeningAt, data.location));

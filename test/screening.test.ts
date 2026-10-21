@@ -53,8 +53,8 @@ async function setup(tag: string, candidate = true) {
     const season = (who: U) => app.inject({ method: "GET", url: base, cookies: who.cookies });
     const plan = (order: number | string, payload: object, who: U = presi) =>
         app.inject({ method: "PATCH", url: `${base}/program/${order}/screening`, cookies: who.cookies, payload });
-    /** La riga dietro un ordine di proiezione (solo dal DB: l'id non esce mai). */
     const schedule = (payload: object, who: U = presi) => app.inject({ method: "POST", url: `${base}/next-screening`, cookies: who.cookies, payload });
+    /** La riga dietro un ordine di proiezione (solo dal DB: l'id non esce mai). */
     const rowOf = (order: number) => db.candidature.findFirstOrThrow({ where: { seasonId: id, projectionOrder: order }, include: { participant: true } });
     /** Chi ha proposto il film (solo dal DB). */
     const proposerOf = async (order: number) => {
@@ -362,4 +362,14 @@ test("reveal-next tiene data e luogo programmati e manda a tutti l'email con il 
     assert.equal(second.screeningAt, null);
     assert.equal(TEST_OUTBOX.length, 4);
     for (const m of TEST_OUTBOX) assert.ok(m.html.includes(escaped(second.movie.title)) && !m.html.includes("Ci vediamo"), m.html);
+});
+
+test("screening del film svelato: non oltre la data già programmata per il prossimo", async () => {
+    const s = await setup("n5");
+    const item = (await s.reveal()).json();
+    assert.equal((await s.schedule({ screeningAt: days(4), location: "Sala" })).statusCode, 200);
+    const late = await s.plan(item.order, { screeningAt: days(5), location: "Sala" });
+    assert.equal(late.statusCode, 400);
+    assert.equal(late.json().message, "La proiezione deve essere prima di quella già programmata per il prossimo film");
+    assert.equal((await s.plan(item.order, { screeningAt: days(3), location: "Sala" })).statusCode, 200);
 });
