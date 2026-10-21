@@ -28,7 +28,7 @@ async function setup(tag: string, memberCount = 3, categoryCount = 2) {
     const categories = await Promise.all(Array.from({ length: categoryCount }, (_, i) => db.category.create({ data: { cineforumId: cf, name: `Categoria ${tag}${i}` } })));
     const award = await db.award.create({ data: { cineforumId: cf, name: "Regia", question: "Quanto ti è piaciuta la regia?" } });
     const body = {
-        name: `Rassegna ${tag}`,
+        name: `Edizione ${tag}`,
         candidaturesCloseAt: days(7),
         categoryIds: categories.map(c => c.id),
         awardIds: [award.id],
@@ -101,7 +101,7 @@ test("membro non presidente non può creare/avviare → 403", async () => {
     assert.equal((await patch(cf, id, members[0]!, { description: "x" })).statusCode, 403);
 });
 
-test("rassegna di un altro cineforum nel path del mio → 404", async () => {
+test("edizione di un altro cineforum nel path del mio → 404", async () => {
     const mine = await setup("c");
     const theirs = await setup("c2");
     const id = (await create(theirs.cf, theirs.presi, theirs.body)).json().id;
@@ -111,17 +111,14 @@ test("rassegna di un altro cineforum nel path del mio → 404", async () => {
     assert.equal((await get(theirs.cf, id, mine.presi)).statusCode, 404);
 });
 
-test("validazioni: partecipante non membro, categorie in eccesso, date", async () => {
+test("validazioni in bozza: appartenenza al cineforum e duplicati", async () => {
     const { presi, cf, body } = await setup("d", 3, 2);
     const estraneo = await makeUser("estraneo-d@x.it");
     const bad: [object, string][] = [
         [{ ...body, participantUserIds: [...body.participantUserIds, estraneo.id] }, "Partecipanti non validi"],
-        [{ ...body, participantUserIds: body.participantUserIds.slice(0, 1) }, ""],
         [{ ...body, participantUserIds: [body.participantUserIds[0], body.participantUserIds[0]] }, "Valori duplicati"],
         [{ ...body, awardIds: [body.awardIds[0], body.awardIds[0]] }, "Valori duplicati"],
         [{ ...body, categoryIds: [body.categoryIds[0], body.categoryIds[0]] }, "Valori duplicati"],
-        [{ ...body, candidaturesCloseAt: days(-1) }, "La chiusura delle candidature deve essere futura"],
-        [{ ...body, finalNightAt: days(3) }, "La serata finale deve essere dopo la chiusura delle candidature"],
         [{ ...body, categoryIds: [999999] }, "Categorie non valide"],
         [{ ...body, awardIds: [999999] }, "Premi non validi"],
     ];
@@ -130,11 +127,40 @@ test("validazioni: partecipante non membro, categorie in eccesso, date", async (
         assert.equal(res.statusCode, 400);
         assert.ok(res.body.includes(msg), res.body);
     }
+});
 
-    const many = await setup("d2", 1, 3); // 2 partecipanti, 3 categorie
-    const res = await create(many.cf, many.presi, many.body);
+test("bozza incompleta: si salva, l'avvio elenca tutti i problemi, poi completata si avvia", async () => {
+    const { presi, members, cf, categories, award, body } = await setup("d2", 3, 2);
+    const created = await create(cf, presi, {
+        name: body.name, candidaturesCloseAt: days(-1), finalNightAt: days(-2),
+        categoryIds: categories.map(c => c.id), awardIds: [], participantUserIds: [presi.id],
+    });
+    assert.equal(created.statusCode, 201);
+    const id = created.json().id;
+
+    const empty = await create(cf, presi, { name: "Vuota", candidaturesCloseAt: days(7), categoryIds: [], awardIds: [], participantUserIds: [] });
+    assert.equal(empty.statusCode, 201);
+    const emptyLaunch = await launch(cf, empty.json().id, presi);
+    assert.equal(emptyLaunch.statusCode, 400);
+    assert.equal(emptyLaunch.json().message,
+        "Per avviare l'edizione: aggiungi almeno una categoria; aggiungi almeno un premio; aggiungi almeno 2 partecipanti");
+
+    const res = await launch(cf, id, presi);
     assert.equal(res.statusCode, 400);
-    assert.equal(res.json().message, "Non puoi avere più categorie che partecipanti");
+    assert.equal(res.json().message, "Per avviare l'edizione: aggiungi almeno un premio; aggiungi almeno 2 partecipanti; " +
+        "non puoi avere più categorie che partecipanti; la chiusura delle candidature deve essere futura; " +
+        "la serata finale deve essere dopo la chiusura delle candidature");
+    assert.equal((await get(cf, id, presi)).json().status, "DRAFT");
+
+    const patched = await patch(cf, id, presi, { awardIds: [award.id], participantUserIds: [presi.id, ...members.map(m => m.id)], candidaturesCloseAt: days(7) });
+    assert.equal(patched.statusCode, 200);
+    const late = await launch(cf, id, presi);
+    assert.equal(late.json().message, "Per avviare l'edizione: la serata finale deve essere dopo la chiusura delle candidature");
+
+    assert.equal((await patch(cf, id, presi, { finalNightAt: days(9) })).statusCode, 200);
+    const ok = await launch(cf, id, presi);
+    assert.equal(ok.statusCode, 200);
+    assert.equal(ok.json().status, "OPEN");
 });
 
 test("in OPEN posso prorogare la scadenza ma non cambiare le categorie", async () => {
@@ -147,7 +173,11 @@ test("in OPEN posso prorogare la scadenza ma non cambiare le categorie", async (
     const no = await patch(cf, id, presi, { categoryIds: [categories[0]!.id] });
     assert.equal(no.statusCode, 400);
     assert.equal(no.json().message, "Non modificabile in questa fase");
-    assert.equal((await patch(cf, id, presi, { candidaturesCloseAt: days(-1) })).statusCode, 400);
+    const past = await patch(cf, id, presi, { candidaturesCloseAt: days(-1) });
+    assert.equal(past.statusCode, 400);
+    assert.equal(past.json().message, "La chiusura delle candidature deve essere futura");
+    const night = await patch(cf, id, presi, { finalNightAt: days(3) });
+    assert.equal(night.json().message, "La serata finale deve essere dopo la chiusura delle candidature");
 });
 
 test("in DRAFT posso cambiare tutto; in DONE nulla", async () => {
@@ -162,11 +192,13 @@ test("in DRAFT posso cambiare tutto; in DONE nulla", async () => {
     assert.equal(done.statusCode, 400);
 });
 
-test("launch due volte → 400; elenco rassegne", async () => {
+test("launch due volte → 400; elenco edizioni", async () => {
     const { presi, members, cf, body } = await setup("g");
     const id = (await create(cf, presi, body)).json().id;
     assert.equal((await launch(cf, id, presi)).statusCode, 200);
-    assert.equal((await launch(cf, id, presi)).statusCode, 400);
+    const again = await launch(cf, id, presi);
+    assert.equal(again.statusCode, 400);
+    assert.equal(again.json().message, "L'edizione è già stata avviata");
     const list = await app.inject({ method: "GET", url: `${URL}/cineforums/${cf}/seasons`, cookies: members[0]!.cookies });
     assert.equal(list.statusCode, 200);
     assert.deepEqual(Object.keys(list.json()[0]).sort(), ["candidaturesCloseAt", "finalNightAt", "id", "name", "status"]);
