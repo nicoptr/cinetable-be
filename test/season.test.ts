@@ -120,7 +120,7 @@ test("validazioni in bozza: appartenenza al cineforum e duplicati", async () => 
         [{ ...body, awardIds: [body.awardIds[0], body.awardIds[0]] }, "Valori duplicati"],
         [{ ...body, categoryIds: [body.categoryIds[0], body.categoryIds[0]] }, "Valori duplicati"],
         [{ ...body, categoryIds: [999999] }, "Categorie non valide"],
-        [{ ...body, awardIds: [999999] }, "Premi non validi"],
+        [{ ...body, awardIds: [999999] }, "Award non validi"],
     ];
     for (const [b, msg] of bad) {
         const res = await create(cf, presi, b);
@@ -143,12 +143,12 @@ test("bozza incompleta: si salva, l'avvio elenca tutti i problemi, poi completat
     const emptyLaunch = await launch(cf, empty.json().id, presi);
     assert.equal(emptyLaunch.statusCode, 400);
     assert.equal(emptyLaunch.json().message,
-        "Per avviare l'edizione: aggiungi almeno una categoria; aggiungi almeno un premio; aggiungi almeno 2 partecipanti");
+        "Per avviare l'edizione: aggiungi almeno una categoria; aggiungi almeno un award; aggiungi almeno 2 partecipanti");
 
     const res = await launch(cf, id, presi);
     assert.equal(res.statusCode, 400);
-    assert.equal(res.json().message, "Per avviare l'edizione: aggiungi almeno un premio; aggiungi almeno 2 partecipanti; " +
-        "non puoi avere più categorie che partecipanti; la chiusura delle candidature deve essere futura; " +
+    assert.equal(res.json().message, "Per avviare l'edizione: aggiungi almeno un award; aggiungi almeno 2 partecipanti; " +
+        "il numero dei partecipanti deve essere un multiplo di quello delle categorie; la chiusura delle candidature deve essere futura; " +
         "la serata finale deve essere dopo la chiusura delle candidature");
     assert.equal((await get(cf, id, presi)).json().status, "DRAFT");
 
@@ -161,6 +161,17 @@ test("bozza incompleta: si salva, l'avvio elenca tutti i problemi, poi completat
     const ok = await launch(cf, id, presi);
     assert.equal(ok.statusCode, 200);
     assert.equal(ok.json().status, "OPEN");
+});
+
+test("avvio: partecipanti non multipli delle categorie → 400; multipli → 200", async () => {
+    const { presi, members, cf, body } = await setup("m", 2, 2);
+    const id = (await create(cf, presi, body)).json().id;
+    const odd = await launch(cf, id, presi);
+    assert.equal(odd.statusCode, 400);
+    assert.equal(odd.json().message, "Per avviare l'edizione: il numero dei partecipanti deve essere un multiplo di quello delle categorie");
+
+    assert.equal((await patch(cf, id, presi, { participantUserIds: [presi.id, members[0]!.id] })).statusCode, 200);
+    assert.equal((await launch(cf, id, presi)).statusCode, 200);
 });
 
 test("in OPEN posso prorogare la scadenza ma non cambiare le categorie", async () => {

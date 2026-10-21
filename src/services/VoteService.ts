@@ -54,7 +54,7 @@ export class VoteService {
         const awardIds = await this.repo.seasonAwardIds(season.id);
         const sent = new Set(data.votes.map(v => v.awardId));
         if (sent.size !== data.votes.length || sent.size !== awardIds.length || !awardIds.every(id => sent.has(id))) {
-            throw new httpErrors.BadRequest("Vota tutti i premi, una volta ciascuno");
+            throw new httpErrors.BadRequest("Vota tutti gli award, una volta ciascuno");
         }
         const already = new httpErrors.Conflict("Hai già votato questo film");
         try {

@@ -106,7 +106,7 @@ test("voti incompleti o premio estraneo → 400", async () => {
     for (const p of bad) {
         const r = await s.vote(v!, p);
         assert.equal(r.statusCode, 400);
-        assert.equal(r.json().message, "Vota tutti i premi, una volta ciascuno");
+        assert.equal(r.json().message, "Vota tutti gli award, una volta ciascuno");
     }
     for (const value of [-1, 101, 1.5, "7"]) {
         assert.equal((await s.vote(v!, { votes: [{ awardId: a1!.id, value }, { awardId: a2!.id, value: 1 }] })).statusCode, 400);

@@ -38,9 +38,9 @@ function dateProblems(closeAt: Date, finalNightAt: Date | null, checkClose = tru
 function launchProblems(s: SeasonRow): string[] {
     const problems: string[] = [];
     if (!s.categories.length) problems.push("aggiungi almeno una categoria");
-    if (!s.awards.length) problems.push("aggiungi almeno un premio");
+    if (!s.awards.length) problems.push("aggiungi almeno un award");
     if (s.participants.length < 2) problems.push("aggiungi almeno 2 partecipanti");
-    if (s.categories.length > s.participants.length) problems.push("non puoi avere più categorie che partecipanti");
+    if (s.categories.length && s.participants.length % s.categories.length) problems.push("il numero dei partecipanti deve essere un multiplo di quello delle categorie");
     return [...problems, ...dateProblems(s.candidaturesCloseAt, s.finalNightAt)];
 }
 
@@ -133,7 +133,7 @@ export class SeasonService {
     /** Solo appartenenza al cineforum dei campi presenti: la completezza si verifica all'avvio. */
     private async validateMembership(cineforumId: number, d: SeasonUpdateDTO) {
         if (d.categoryIds && (await this.repo.countCategories(d.categoryIds, cineforumId)) !== d.categoryIds.length) throw new httpErrors.BadRequest("Categorie non valide");
-        if (d.awardIds && (await this.repo.countAwards(d.awardIds, cineforumId)) !== d.awardIds.length) throw new httpErrors.BadRequest("Premi non validi");
+        if (d.awardIds && (await this.repo.countAwards(d.awardIds, cineforumId)) !== d.awardIds.length) throw new httpErrors.BadRequest("Award non validi");
         if (d.participantUserIds && (await this.repo.countMembers(d.participantUserIds, cineforumId)) !== d.participantUserIds.length) throw new httpErrors.BadRequest("Partecipanti non validi");
     }
 

@@ -42,7 +42,7 @@ export class ResultsService {
             // stesso lock del voto: nessun voto entra dopo un risultato annunciato
             const { status } = await this.candidatures.lockSeason(tx, season.id);
             const envelope = await tx.seasonAward.findUnique({ where, select: envelopeSelect });
-            if (!envelope) throw new httpErrors.NotFound("Premio non trovato");
+            if (!envelope) throw new httpErrors.NotFound("Award non trovato");
             if (envelope.revealedAt) return this.result(tx, season.id, envelope);
 
             if (status !== "SCREENING" && status !== "FINAL") throw new httpErrors.BadRequest(NOT_EDITABLE);

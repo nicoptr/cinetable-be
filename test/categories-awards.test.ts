@@ -90,7 +90,7 @@ test("DELETE di categoria o premio usati in un'edizione → 409", async () => {
     assert.equal(c.json().message, "Categoria usata in un'edizione");
     const a = await app.inject({ method: "DELETE", url: `${URL}/cineforums/${cf}/awards/${award.id}`, cookies: presi.cookies });
     assert.equal(a.statusCode, 409);
-    assert.equal(a.json().message, "Premio usato in un'edizione");
+    assert.equal(a.json().message, "Award usato in un'edizione");
 });
 
 test("PATCH di categoria o premio usati in un'edizione avviata → 409; in bozza no", async () => {
@@ -118,7 +118,7 @@ test("PATCH di categoria o premio usati in un'edizione avviata → 409; in bozza
         assert.equal(c.json().message, "Usata in un'edizione avviata: crea una nuova categoria");
         const a = await patchAward();
         assert.equal(a.statusCode, 409);
-        assert.equal(a.json().message, "Usato in un'edizione avviata: crea un nuovo premio");
+        assert.equal(a.json().message, "Usato in un'edizione avviata: crea un nuovo award");
     }
     assert.equal((await db.category.findUniqueOrThrow({ where: { id: cat.id } })).name, "Thriller");
     assert.equal((await db.award.findUniqueOrThrow({ where: { id: award.id } })).name, "Fotografia");

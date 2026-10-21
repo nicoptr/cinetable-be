@@ -37,7 +37,7 @@ export class AwardController {
     })
     async update(req: FastifyRequest<{ Params: Item; Body: AwardUpdateDTO }>, reply: FastifyReply) {
         const { id, awardId } = req.params;
-        reply.status(200).send(await this.service.update(req.user.id, parseId(id), parseId(awardId, "Premio non trovato"), req.body));
+        reply.status(200).send(await this.service.update(req.user.id, parseId(id), parseId(awardId, "Award non trovato"), req.body));
     }
 
     @DELETE("/:awardId", {
@@ -46,7 +46,7 @@ export class AwardController {
     })
     async delete(req: FastifyRequest<{ Params: Item }>, reply: FastifyReply) {
         const { id, awardId } = req.params;
-        await this.service.delete(req.user.id, parseId(id), parseId(awardId, "Premio non trovato"));
+        await this.service.delete(req.user.id, parseId(id), parseId(awardId, "Award non trovato"));
         reply.status(204).send();
     }
 }

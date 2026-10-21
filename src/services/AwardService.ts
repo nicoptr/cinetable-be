@@ -22,20 +22,20 @@ export class AwardService {
         await requirePresident(userId, cineforumId);
         await this.find(id, cineforumId);
         // gli archivi passati non cambiano
-        if (await this.repo.countStartedSeasons(id)) throw new httpErrors.Conflict("Usato in un'edizione avviata: crea un nuovo premio");
+        if (await this.repo.countStartedSeasons(id)) throw new httpErrors.Conflict("Usato in un'edizione avviata: crea un nuovo award");
         return this.repo.update(id, data);
     }
 
     async delete(userId: number, cineforumId: number, id: number) {
         await requirePresident(userId, cineforumId);
         const award = await this.find(id, cineforumId);
-        if (award._count.seasons > 0) throw new httpErrors.Conflict("Premio usato in un'edizione");
+        if (award._count.seasons > 0) throw new httpErrors.Conflict("Award usato in un'edizione");
         await this.repo.delete(id);
     }
 
     private async find(id: number, cineforumId: number) {
         const award = await this.repo.findInCineforum(id, cineforumId);
-        if (!award) throw new httpErrors.NotFound("Premio non trovato");
+        if (!award) throw new httpErrors.NotFound("Award non trovato");
         return award;
     }
 }

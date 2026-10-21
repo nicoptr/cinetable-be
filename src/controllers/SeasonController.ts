@@ -72,7 +72,7 @@ export class SeasonController {
         onRequest: [Authenticate()],
     })
     async openEnvelope(req: FastifyRequest<{ Params: Item & { awardId: string } }>, reply: FastifyReply) {
-        const awardId = parseId(req.params.awardId, "Premio non trovato");
+        const awardId = parseId(req.params.awardId, "Award non trovato");
         reply.status(200).send(await this.results.open(req.user.id, parseId(req.params.id), seasonId(req.params), awardId));
     }
 
