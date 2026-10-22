@@ -9,6 +9,7 @@ import { toNextScreening, toProgramItem } from "@models/Candidature";
 import { requireMember, requirePresident } from "@utils/membership";
 import { shuffle } from "@utils/random";
 import { seasonLaunchedTemplate } from "../templates/email/seasonLaunchedTemplate";
+import { seasonLink } from "@utils/links";
 
 const NOT_EDITABLE = "Non modificabile in questa fase";
 /** Campi modificabili per stato; DRAFT: tutti (null = nessun limite). */
@@ -125,7 +126,7 @@ export class SeasonService {
 
         const recipients = await this.repo.participantsWithEmail(season.id);
         await Promise.all(recipients.map(r => this.email.send(
-            r.user.email, `Sei in gara: ${launched.name}`, seasonLaunchedTemplate(launched.name, r.category!.name, launched.candidaturesCloseAt),
+            r.user.email, `Sei in gara: ${launched.name}`, seasonLaunchedTemplate(launched.name, r.category!.name, launched.candidaturesCloseAt, seasonLink(cineforumId, season.id)),
         )));
         return this.view(season.id, membership, await this.repo.findParticipant(season.id, userId));
     }

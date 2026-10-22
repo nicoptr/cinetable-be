@@ -187,7 +187,7 @@ test("screening su film non svelato → 404", async () => {
         assert.equal(m.subject, "Prossima proiezione");
         assert.ok(m.html.includes(item.movie.title.replace("<", "&lt;").replace(">", "&gt;")), m.html);
         assert.ok(m.html.includes("Sala &lt;1&gt;"), m.html);
-        assert.ok(m.html.includes("15-03-2030 alle 20:30"), m.html);
+        assert.ok(m.html.includes("venerdì 15 marzo 2030 alle 20:30"), m.html);
     }
 });
 
@@ -274,7 +274,7 @@ test("next-screening in OPEN chiusa: parte SCREENING, email a tutti con la categ
     assert.deepEqual(TEST_OUTBOX.map(m => m.to).sort(), (await Promise.all(s.users.map(emailOf))).sort());
     for (const m of TEST_OUTBOX) {
         assert.equal(m.subject, "Prossima proiezione");
-        assert.ok(m.html.includes("Categoria n1") && m.html.includes("Sala &lt;1&gt;") && m.html.includes("15-03-2030 alle 20:30"), m.html);
+        assert.ok(m.html.includes("Categoria n1") && m.html.includes("Sala &lt;1&gt;") && m.html.includes("venerdì 15 marzo 2030 alle 20:30"), m.html);
         for (const movie of MOVIES) {
             assert.ok(!m.html.includes(escaped(movie.title)) && !m.html.includes(movie.originalTitle), m.html);
             if (movie.posterPath) assert.ok(!m.html.includes(movie.posterPath), m.html);
@@ -351,7 +351,7 @@ test("reveal-next tiene data e luogo programmati e manda a tutti l'email con il 
     assert.deepEqual(TEST_OUTBOX.map(m => m.to).sort(), (await Promise.all(s.users.map(emailOf))).sort());
     for (const m of TEST_OUTBOX) {
         assert.equal(m.subject, "Svelato il prossimo film");
-        assert.ok(m.html.includes(escaped(next.movie.title)) && m.html.includes("Sala &lt;1&gt;") && m.html.includes("15-03-2030 alle 20:30"), m.html);
+        assert.ok(m.html.includes(escaped(next.movie.title)) && m.html.includes("Sala &lt;1&gt;") && m.html.includes("venerdì 15 marzo 2030 alle 20:30"), m.html);
     }
     // la proiezione fissata è in programma: il prossimo si svela dopo
     assert.equal((await s.reveal()).json().message, "Proietta il film in programma prima di svelare il prossimo");
@@ -361,7 +361,7 @@ test("reveal-next tiene data e luogo programmati e manda a tutti l'email con il 
     const second = (await s.reveal()).json();
     assert.equal(second.screeningAt, null);
     assert.equal(TEST_OUTBOX.length, 4);
-    for (const m of TEST_OUTBOX) assert.ok(m.html.includes(escaped(second.movie.title)) && !m.html.includes("Ci vediamo"), m.html);
+    for (const m of TEST_OUTBOX) assert.ok(m.html.includes(escaped(second.movie.title)) && !m.html.includes("Quando"), m.html);
 });
 
 test("screening del film svelato: non oltre la data già programmata per il prossimo", async () => {

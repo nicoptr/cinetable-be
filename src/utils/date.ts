@@ -1,13 +1,9 @@
 import { DateTime } from "luxon";
 
-export const formatItaliaDate = (date: Date | undefined | null): string => {
-    return date ? DateTime.fromJSDate(date).setZone("Europe/Rome").toFormat("dd-MM-yyyy") : "data mancante";
-}
+const rome = (date: Date) => DateTime.fromJSDate(date).setZone("Europe/Rome").setLocale("it");
 
-export const formatItaliaTime = (date: Date | undefined | null): string => {
-    return new Date(date ?? "").toLocaleTimeString("it-IT", {
-        hour: "2-digit",
-        minute: "2-digit"
-    });
+/** "28 ottobre 2026" */
+export const formatDay = (date: Date): string => rome(date).toFormat("d LLLL yyyy");
 
-}
+/** "venerdì 15 marzo 2030 alle 20:30" */
+export const formatDayTime = (date: Date): string => rome(date).toFormat("cccc d LLLL yyyy 'alle' HH:mm");

@@ -1,11 +1,12 @@
-import { DateTime } from "luxon";
-import { emailLayout } from "./layout";
+import { emailButton, emailFact, emailLayout, emailNote, emailText } from "./layout";
 import { escapeHtml } from "@utils/html";
+import { formatDayTime } from "@utils/date";
 
-export function seasonLaunchedTemplate(seasonName: string, categoryName: string, closeAt: Date): string {
-    const when = DateTime.fromJSDate(closeAt).setZone("Europe/Rome").toFormat("dd-MM-yyyy 'alle' HH:mm");
-    return emailLayout("Sei in gara", `<p>L'edizione <strong>${escapeHtml(seasonName)}</strong> è partita!</p>
-<p>La tua categoria è <strong>${escapeHtml(categoryName)}</strong>: proponi un film che le appartenga.</p>
-<p>Le candidature chiudono il ${when} (ora di Roma).</p>
-<p>Tieni la categoria segreta: nessun altro sa quale sia la tua.</p>`);
+export function seasonLaunchedTemplate(seasonName: string, categoryName: string, closeAt: Date, url: string): string {
+    return emailLayout("Nuova edizione", "Sei in gara",
+        emailText(`L'edizione <strong>${escapeHtml(seasonName)}</strong> è partita!`) +
+        emailFact("La tua categoria", escapeHtml(categoryName)) +
+        emailText(`Proponi un film che le appartenga entro ${formatDayTime(closeAt)}.`) +
+        emailButton(url, "Candida il tuo film") +
+        emailNote("Tieni la categoria per te: nessun altro sa qual è la tua."));
 }

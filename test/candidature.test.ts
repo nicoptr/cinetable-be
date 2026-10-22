@@ -85,7 +85,7 @@ test("stesso film da due persone → entrambe DUPLICATE, film escluso, due email
     for (const m of TEST_OUTBOX) {
         assert.equal(m.subject, "Scegli un altro film");
         assert.ok(m.html.includes("La cosa &lt;1982&gt;"), m.html);
-        assert.ok(m.html.includes("ora di Roma"));
+        assert.ok(!m.html.includes("ora di Roma") && m.html.includes("/cineforums/"), m.html);
     }
     const presiEmail = await emailOf(presi);
     assert.ok(!TEST_OUTBOX.some(m => m.to === presiEmail));

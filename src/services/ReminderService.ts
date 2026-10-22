@@ -4,6 +4,7 @@ import { getPrismaClient } from "@utils/prisma";
 import { LOGGER } from "@utils/winston";
 import { EmailSenderService } from "@services/EmailSenderService";
 import { deadlineReminderTemplate } from "../templates/email/deadlineReminderTemplate";
+import { seasonLink } from "@utils/links";
 
 const WINDOW_MS = 72 * 3600 * 1000;
 
@@ -25,7 +26,7 @@ export class ReminderService {
             },
         });
         const sends = seasons.flatMap(s => s.participants.map(p =>
-            this.email.send(p.user.email, "Promemoria: candida il tuo film", deadlineReminderTemplate(s.name, p.category?.name ?? null, s.candidaturesCloseAt))));
+            this.email.send(p.user.email, "Promemoria: candida il tuo film", deadlineReminderTemplate(s.name, p.category?.name ?? null, s.candidaturesCloseAt, seasonLink(s.cineforumId, s.id)))));
         await Promise.all(sends);
         return sends.length;
     }

@@ -1,9 +1,11 @@
-import { emailButton, emailLayout } from "./layout";
+import { emailButton, emailLayout, emailNote, emailText } from "./layout";
 import { escapeHtml } from "@utils/html";
-import { formatItaliaDate } from "@utils/date";
+import { formatDay } from "@utils/date";
 
 export function cineforumInvitationTemplate(cineforumName: string, inviterUsername: string, url: string, expiresAt: Date): string {
-    return emailLayout("Sei stato invitato", `<p>${escapeHtml(inviterUsername)} ti ha invitato al cineforum <strong>${escapeHtml(cineforumName)}</strong> su Cinetable.</p>
-<p>L'invito scade il ${formatItaliaDate(expiresAt)}.</p>
-${emailButton(url, "Vedi l'invito")}`);
+    return emailLayout("Invito", "Hai un posto a tavola",
+        emailText(`${escapeHtml(inviterUsername)} ti invita nel cineforum <strong>${escapeHtml(cineforumName)}</strong> su Cinetable.`) +
+        emailText("Ognuno porta un film in segreto, lo guardate insieme e alla serata finale si aprono le buste.") +
+        emailButton(url, "Vedi l'invito") +
+        emailNote(`L'invito scade il ${formatDay(expiresAt)}.`));
 }

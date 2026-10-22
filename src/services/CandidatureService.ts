@@ -14,6 +14,7 @@ import { screeningPlannedTemplate } from "../templates/email/screeningPlannedTem
 import { screeningScheduledTemplate } from "../templates/email/screeningScheduledTemplate";
 import { filmRevealedTemplate } from "../templates/email/filmRevealedTemplate";
 import { shuffle } from "@utils/random";
+import { seasonLink } from "@utils/links";
 
 type Db = Prisma.TransactionClient;
 
@@ -67,7 +68,7 @@ export class CandidatureService {
         });
 
         if (outcome.closeAt) {
-            const html = candidatureDuplicateTemplate(movie.title, outcome.closeAt);
+            const html = candidatureDuplicateTemplate(movie.title, outcome.closeAt, seasonLink(cineforumId, season.id));
             const recipients = await this.repo.emailsOf(outcome.notify);
             await Promise.all(recipients.map(r => this.email.send(r.email, "Scegli un altro film", html)));
         }
@@ -103,7 +104,7 @@ export class CandidatureService {
             return next.id;
         });
         const row = await this.repo.findProgramRow(revealedId);
-        const html = filmRevealedTemplate(row.movie.title, row.screeningAt, row.location);
+        const html = filmRevealedTemplate(row.movie.title, row.screeningAt, row.location, seasonLink(cineforumId, season.id));
         await this.sendToParticipants(season.id, "Svelato il prossimo film", html);
         return toProgramItem(row, { participantId: participant?.id ?? null, isPresident: true });
     }
@@ -122,7 +123,7 @@ export class CandidatureService {
             if (pending?.screeningAt && data.screeningAt <= pending.screeningAt) throw new httpErrors.BadRequest("La proiezione deve essere dopo quella già in programma");
             return toNextScreening(await this.repo.scheduleScreening(tx, next.id, data))!;
         });
-        await this.sendToParticipants(season.id, "Prossima proiezione", screeningScheduledTemplate(scheduled.categoryName, data.screeningAt, data.location));
+        await this.sendToParticipants(season.id, "Prossima proiezione", screeningScheduledTemplate(scheduled.categoryName, data.screeningAt, data.location, seasonLink(cineforumId, season.id)));
         return scheduled;
     }
 
@@ -160,7 +161,7 @@ export class CandidatureService {
         if (next?.screeningAt && data.screeningAt >= next.screeningAt) throw new httpErrors.BadRequest("La proiezione deve essere prima di quella già programmata per il prossimo film");
 
         const row = await this.repo.planScreening(revealed.id, data);
-        await this.sendToParticipants(season.id, "Prossima proiezione", screeningPlannedTemplate(row.movie.title, data.screeningAt, data.location));
+        await this.sendToParticipants(season.id, "Prossima proiezione", screeningPlannedTemplate(row.movie.title, data.screeningAt, data.location, seasonLink(cineforumId, season.id)));
         return toProgramItem(row, { participantId: participant?.id ?? null, isPresident: true });
     }
 

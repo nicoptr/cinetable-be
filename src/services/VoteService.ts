@@ -10,6 +10,7 @@ import { requirePresident } from "@utils/membership";
 import { isUniqueViolation } from "@utils/prisma";
 import { votingOpenTemplate } from "../templates/email/votingOpenTemplate";
 import { voteReminderTemplate } from "../templates/email/voteReminderTemplate";
+import { filmLink } from "@utils/links";
 
 const NOT_EDITABLE = "Non modificabile in questa fase";
 
@@ -38,7 +39,7 @@ export class VoteService {
 
         // l'email parte solo da chi apre davvero: la seconda chiamata non rimanda nulla
         if (await this.repo.openVoting(c.id)) {
-            const html = votingOpenTemplate(c.movie.title);
+            const html = votingOpenTemplate(c.movie.title, filmLink(cineforumId, season.id, order));
             const recipients = await this.repo.recipients(season.id, c.id, c.participantId, false);
             await Promise.all(recipients.map(r => this.email.send(r.user.email, `Vota il film: ${c.movie.title}`, html)));
         }
@@ -88,7 +89,7 @@ export class VoteService {
         if (!c.votingOpenedAt) throw new httpErrors.BadRequest("Il voto non è aperto");
 
         const recipients = await this.repo.recipients(season.id, c.id, c.participantId, true);
-        const html = voteReminderTemplate(c.movie.title);
+        const html = voteReminderTemplate(c.movie.title, filmLink(cineforumId, season.id, order));
         await Promise.all(recipients.map(r => this.email.send(r.user.email, "Manca il tuo voto", html)));
         return { sent: recipients.length };
     }
