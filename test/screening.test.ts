@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp, resetDb, TEST_OUTBOX } from "./helpers";
-import { makeCineforum, makeUser, stubTmdb } from "./game-helpers";
+import { makeCineforum, makeUser, scheduleAndReveal, stubTmdb } from "./game-helpers";
 import { getPrismaClient } from "@utils/prisma";
 
 const URL = "/sub/api";
@@ -50,6 +50,7 @@ async function setup(tag: string, candidate = true) {
     }
     TEST_OUTBOX.length = 0;
     const reveal = (who: U = presi) => app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: who.cookies });
+    const revealScheduled = () => scheduleAndReveal(app, base, presi.cookies);
     const season = (who: U) => app.inject({ method: "GET", url: base, cookies: who.cookies });
     const plan = (order: number | string, payload: object, who: U = presi) =>
         app.inject({ method: "PATCH", url: `${base}/program/${order}/screening`, cookies: who.cookies, payload });
@@ -63,7 +64,7 @@ async function setup(tag: string, candidate = true) {
     };
     /** Proiezione appena avvenuta. */
     const screened = async (order: number) => db.candidature.update({ where: { id: (await rowOf(order)).id }, data: { screeningAt: new Date(Date.now() - 1000) } });
-    return { presi, A, B, C, users, cf, id, base, put, closeNow, reveal, season, plan, schedule, rowOf, proposerOf, screened };
+    return { presi, A, B, C, users, cf, id, base, put, closeNow, reveal, revealScheduled, season, plan, schedule, rowOf, proposerOf, screened };
 }
 
 const usernameOf = async (u: U) => (await getPrismaClient().user.findUniqueOrThrow({ where: { id: u.id } })).username;
@@ -91,11 +92,16 @@ test("non si svela prima della scadenza né con film mancanti", async () => {
 test("svelamento uno alla volta, ordine casuale stabile, proponente mai nel ProgramItem", async () => {
     const s = await setup("b");
     const db = getPrismaClient();
-    const first = await s.reveal();
+    const unscheduled = await s.reveal();
+    assert.equal(unscheduled.statusCode, 400);
+    assert.equal(unscheduled.json().message, "Programma la prossima proiezione prima di svelare il film");
+    assert.equal((await db.season.findUniqueOrThrow({ where: { id: s.id } })).status, "OPEN");
+
+    const first = await s.revealScheduled();
     assert.equal(first.statusCode, 200);
     const item = first.json();
     assert.equal(item.order, 1);
-    assert.equal(item.screeningAt, null);
+    assert.ok(item.screeningAt);
     assert.equal(item.votingOpen, false);
     assert.equal(item.isMine, (await s.proposerOf(item.order)) === s.presi);
     assert.ok(!("candidatureId" in item));
@@ -135,7 +141,7 @@ test("svelamento uno alla volta, ordine casuale stabile, proponente mai nel Prog
     assert.equal((await s.reveal()).json().message, "Proietta il film in programma prima di svelare il prossimo");
 
     await s.screened(item.order);
-    const second = await s.reveal();
+    const second = await s.revealScheduled();
     assert.equal(second.statusCode, 200);
     assert.equal(second.json().order, 2);
     assert.equal(second.json().movie.tmdbId, rows[1]!.tmdbId);
@@ -145,7 +151,7 @@ test("svelamento uno alla volta, ordine casuale stabile, proponente mai nel Prog
     // svela il resto, poi niente più da svelare
     for (const row of rows.slice(1)) {
         await db.candidature.update({ where: { id: row.id }, data: { screeningAt: new Date(Date.now() - 1000) } });
-        const r = await s.reveal();
+        const r = await s.revealScheduled();
         if (row === rows.at(-1)) {
             assert.equal(r.statusCode, 400);
             assert.equal(r.json().message, "Hai già svelato tutti i film");
@@ -156,6 +162,7 @@ test("svelamento uno alla volta, ordine casuale stabile, proponente mai nel Prog
 
 test("due reveal-next simultanei svelano un solo film", async () => {
     const s = await setup("c");
+    await s.schedule({ screeningAt: days(1), location: "Sala" });
     const [r1, r2] = await Promise.all([s.reveal(), s.reveal()]);
     assert.deepEqual([r1.statusCode, r2.statusCode].sort(), [200, 400]);
     assert.equal(await getPrismaClient().candidature.count({ where: { seasonId: s.id, revealedAt: { not: null } } }), 1);
@@ -163,7 +170,7 @@ test("due reveal-next simultanei svelano un solo film", async () => {
 
 test("screening su film non svelato → 404", async () => {
     const s = await setup("d");
-    const item = (await s.reveal()).json();
+    const item = (await s.revealScheduled()).json();
     TEST_OUTBOX.length = 0;
     const hidden = await getPrismaClient().candidature.findFirstOrThrow({ where: { seasonId: s.id, revealedAt: null } });
     const notFound = await s.plan(hidden.projectionOrder!, { screeningAt: days(1), location: "Sala" });
@@ -194,7 +201,7 @@ test("screening su film non svelato → 404", async () => {
 test("screening: proiezione già avvenuta → 400; fuori da SCREENING → 400, nessuna email", async () => {
     const s = await setup("f");
     const db = getPrismaClient();
-    const item = (await s.reveal()).json();
+    const item = (await s.revealScheduled()).json();
     TEST_OUTBOX.length = 0;
     const cid = (await s.rowOf(item.order)).id;
     await s.screened(item.order);
@@ -214,7 +221,7 @@ test("screening: proiezione già avvenuta → 400; fuori da SCREENING → 400, n
 
 test("isMine true solo per il proponente", async () => {
     const s = await setup("e");
-    const item = (await s.reveal()).json();
+    const item = (await s.revealScheduled()).json();
     const proposer = await s.proposerOf(item.order);
     for (const viewer of s.users) {
         const p = (await s.season(viewer)).json().program[0];
@@ -226,12 +233,13 @@ test("isMine true solo per il proponente", async () => {
 
 test("screening: data passata ammessa solo se il film non ne ha ancora una", async () => {
     const s = await setup("g");
-    const item = (await s.reveal()).json();
-    // proiezione già avvenuta da registrare: ammessa, e sblocca reveal-next
+    const item = (await s.revealScheduled()).json();
+    // film svelato senza data (dati di prima della programmazione obbligatoria): si registra la proiezione già avvenuta
+    await getPrismaClient().candidature.update({ where: { id: (await s.rowOf(item.order)).id }, data: { screeningAt: null } });
     const recorded = await s.plan(item.order, { screeningAt: days(-1), location: "Sala" });
     assert.equal(recorded.statusCode, 200);
     assert.equal(new Date(recorded.json().screeningAt).getTime() < Date.now(), true);
-    assert.equal((await s.reveal()).statusCode, 200);
+    assert.equal((await s.revealScheduled()).statusCode, 200);
 
     // data futura già fissata: non si sposta nel passato
     const second = 2;
@@ -241,11 +249,11 @@ test("screening: data passata ammessa solo se il film non ne ha ancora una", asy
     assert.equal(past.json().message, "La proiezione non può essere nel passato");
 });
 
-test("PATCH della scadenza e primo reveal-next simultanei: mai entrambi a buon fine", async () => {
+test("PATCH della scadenza e prima programmazione simultanee: mai entrambe a buon fine", async () => {
     for (const tag of ["h1", "h2", "h3"]) {
         const s = await setup(tag);
         const [r, p] = await Promise.all([
-            s.reveal(),
+            s.schedule({ screeningAt: days(1), location: "Sala" }),
             app.inject({ method: "PATCH", url: s.base, cookies: s.presi.cookies, payload: { candidaturesCloseAt: days(3) } }),
         ]);
         assert.notDeepEqual([r.statusCode, p.statusCode], [200, 200]);
@@ -304,7 +312,7 @@ test("next-screening: 403 al membro, 400 con film mancanti, nel passato o prima 
         assert.equal((await s.schedule(payload)).statusCode, 400);
     }
 
-    const item = (await s.reveal()).json();
+    const item = (await s.revealScheduled()).json();
     assert.equal((await s.plan(item.order, { screeningAt: days(3), location: "Sala" })).statusCode, 200);
     TEST_OUTBOX.length = 0;
     const early = await s.schedule({ screeningAt: days(2), location: "Sala" });
@@ -358,15 +366,15 @@ test("reveal-next tiene data e luogo programmati e manda a tutti l'email con il 
 
     await s.screened(item.order);
     TEST_OUTBOX.length = 0;
-    const second = (await s.reveal()).json();
-    assert.equal(second.screeningAt, null);
-    assert.equal(TEST_OUTBOX.length, 4);
-    for (const m of TEST_OUTBOX) assert.ok(m.html.includes(escaped(second.movie.title)) && !m.html.includes("Quando"), m.html);
+    const unscheduled = await s.reveal();
+    assert.equal(unscheduled.json().message, "Programma la prossima proiezione prima di svelare il film");
+    assert.equal(TEST_OUTBOX.length, 0);
+    assert.equal(await getPrismaClient().candidature.count({ where: { seasonId: s.id, revealedAt: { not: null } } }), 1);
 });
 
 test("screening del film svelato: non oltre la data già programmata per il prossimo", async () => {
     const s = await setup("n5");
-    const item = (await s.reveal()).json();
+    const item = (await s.revealScheduled()).json();
     assert.equal((await s.schedule({ screeningAt: days(4), location: "Sala" })).statusCode, 200);
     const late = await s.plan(item.order, { screeningAt: days(5), location: "Sala" });
     assert.equal(late.statusCode, 400);

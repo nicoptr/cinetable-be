@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp, resetDb } from "./helpers";
-import { makeCineforum, makeUser, stubTmdb } from "./game-helpers";
+import { makeCineforum, makeUser, stubTmdb, scheduleAndReveal } from "./game-helpers";
 import { getPrismaClient } from "@utils/prisma";
 
 const URL = "/sub/api";
@@ -49,7 +49,7 @@ async function setup(tag: string) {
     await db.season.update({ where: { id }, data: { candidaturesCloseAt: new Date(Date.now() - 1000) } });
     const films: { cid: number; order: number; proposer: U }[] = [];
     for (let i = 0; i < 4; i++) {
-        const order: number = (await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies })).json().order;
+        const order: number = (await scheduleAndReveal(app, base, presi.cookies)).json().order;
         const row = await db.candidature.findFirstOrThrow({ where: { seasonId: id, projectionOrder: order }, include: { participant: true } });
         await db.candidature.update({ where: { id: row.id }, data: { screeningAt: new Date(Date.now() - 1000), location: `Sala ${i}` } });
         await app.inject({ method: "POST", url: `${base}/program/${order}/open-voting`, cookies: presi.cookies });

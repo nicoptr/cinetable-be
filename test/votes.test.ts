@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp, resetDb, TEST_OUTBOX } from "./helpers";
-import { makeCineforum, makeUser, stubTmdb } from "./game-helpers";
+import { makeCineforum, makeUser, stubTmdb, scheduleAndReveal } from "./game-helpers";
 import { getPrismaClient } from "@utils/prisma";
 
 const URL = "/sub/api";
@@ -50,7 +50,7 @@ async function setup(tag: string) {
         await app.inject({ method: "PUT", url: `${base}/candidature`, cookies: u.cookies, payload: { tmdbId: MOVIES[i]!.tmdbId } });
     }
     await db.season.update({ where: { id }, data: { candidaturesCloseAt: new Date(Date.now() - 1000) } });
-    const item = (await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies })).json();
+    const item = (await scheduleAndReveal(app, base, presi.cookies)).json();
     const order: number = item.order;
     // l'id resta interno: lo legge solo il test, dal DB
     const row = await db.candidature.findFirstOrThrow({ where: { seasonId: id, projectionOrder: order }, include: { participant: true } });

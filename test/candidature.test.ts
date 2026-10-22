@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp, resetDb, TEST_OUTBOX } from "./helpers";
-import { makeCineforum, makeUser, stubTmdb } from "./game-helpers";
+import { makeCineforum, makeUser, scheduleAndReveal, stubTmdb } from "./game-helpers";
 import { getPrismaClient } from "@utils/prisma";
 import { getInstanceByToken } from "fastify-decorators";
 import { TmdbClient } from "@services/TmdbClient";
@@ -252,7 +252,7 @@ test("rimozione di chi non ha un film valido sblocca lo svelamento", async () =>
     assert.equal(ok.statusCode, 204);
     assert.equal(await db.candidature.count({ where: { seasonId: id, participant: { userId: C.id } } }), 0);
     assert.deepEqual((await progress(presi)).json(), { expected: 3, valid: 3, missing: [] });
-    assert.equal((await reveal()).statusCode, 200);
+    assert.equal((await scheduleAndReveal(app, base, presi.cookies)).statusCode, 200);
     // fuori da OPEN non si rimuove più nessuno
     assert.equal((await remove(presi, A)).json().message, "Puoi rimuovere solo chi non ha ancora un film valido");
 });

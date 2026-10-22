@@ -91,7 +91,7 @@ export class CandidatureService {
         return { expected: rows.length, valid: rows.length - missing.length, missing };
     }
 
-    /** Svela il prossimo film; al primo svelamento sorteggia l'ordine di proiezione. Data e luogo già fissati restano. */
+    /** Svela il prossimo film, che deve avere già data e luogo; al primo svelamento sorteggia l'ordine di proiezione. */
     async revealNext(userId: number, cineforumId: number, seasonId: number): Promise<ProgramItem> {
         await requirePresident(userId, cineforumId);
         const { season, participant } = await this.seasons.requireSeason(userId, cineforumId, seasonId);
@@ -100,7 +100,9 @@ export class CandidatureService {
             await this.lockForReveal(tx, season.id);
             if (await this.repo.findPendingScreening(tx, season.id)) throw new httpErrors.BadRequest("Proietta il film in programma prima di svelare il prossimo");
             const next = await this.repo.findNextToReveal(season.id, tx);
-            if (!next || !(await this.repo.reveal(tx, next.id))) throw new httpErrors.BadRequest(ALL_REVEALED);
+            if (!next) throw new httpErrors.BadRequest(ALL_REVEALED);
+            if (!next.screeningAt) throw new httpErrors.BadRequest("Programma la prossima proiezione prima di svelare il film");
+            if (!(await this.repo.reveal(tx, next.id))) throw new httpErrors.BadRequest(ALL_REVEALED);
             return next.id;
         });
         const row = await this.repo.findProgramRow(revealedId);

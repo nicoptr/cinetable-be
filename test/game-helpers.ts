@@ -40,3 +40,10 @@ export function stubTmdb(movies: TmdbMovie[]): void {
     });
     client.getMovie = async tmdbId => movies.find(m => m.tmdbId === tmdbId) ?? null;
 }
+
+/** reveal-next vuole la prossima proiezione già fissata: la programma fra un giorno e poi svela. */
+export async function scheduleAndReveal(app: Awaited<ReturnType<typeof buildApp>>, base: string, cookies: Record<string, string>) {
+    const payload = { screeningAt: new Date(Date.now() + 86400000).toISOString(), location: "Sala" };
+    await app.inject({ method: "POST", url: `${base}/next-screening`, cookies, payload });
+    return app.inject({ method: "POST", url: `${base}/reveal-next`, cookies });
+}

@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp, resetDb } from "./helpers";
-import { makeCineforum, makeUser, stubTmdb } from "./game-helpers";
+import { makeCineforum, makeUser, stubTmdb, scheduleAndReveal } from "./game-helpers";
 import { getPrismaClient } from "@utils/prisma";
 
 /**
@@ -160,17 +160,17 @@ test("nessuna risposta del gioco tradisce film non svelati o proponenti", async 
     // SCREENING con un film svelato
     await db.season.update({ where: { id }, data: { candidaturesCloseAt: new Date(Date.now() - 1000) } });
     const revealOne = async () => {
-        const r = await app.inject({ method: "POST", url: `${base}/reveal-next`, cookies: presi.cookies });
+        const r = await scheduleAndReveal(app, base, presi.cookies);
         assert.equal(r.statusCode, 200);
         const order: number = r.json().order;
         const f = films.find(x => x.movie.tmdbId === r.json().movie.tmdbId)!;
         f.order = order;
         revealed.add(f.cid);
         check(presi, "POST reveal-next", r.body);
-        // proiezione già avvenuta, registrata a posteriori
-        const sc = await app.inject({ method: "PATCH", url: `${base}/program/${order}/screening`, cookies: presi.cookies, payload: { screeningAt: new Date(Date.now() - 1000).toISOString(), location: "Sala" } });
+        const sc = await app.inject({ method: "PATCH", url: `${base}/program/${order}/screening`, cookies: presi.cookies, payload: { screeningAt: new Date(Date.now() + 2 * 86400000).toISOString(), location: "Sala" } });
         assert.equal(sc.statusCode, 200);
         check(presi, "PATCH screening", sc.body);
+        await db.candidature.update({ where: { id: f.cid }, data: { screeningAt: new Date(Date.now() - 1000) } });
         const ov = await app.inject({ method: "POST", url: `${base}/program/${order}/open-voting`, cookies: presi.cookies });
         assert.equal(ov.statusCode, 200);
         check(presi, "POST open-voting", ov.body);
