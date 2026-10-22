@@ -1,4 +1,4 @@
-FROM node:18.20.8-alpine
+FROM node:20.19.2-alpine
 MAINTAINER Nicola Pietrangelo <nicola.pietrangelo@overzoom.it>
 
 WORKDIR /app
