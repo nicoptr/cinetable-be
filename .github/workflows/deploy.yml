@@ -1,0 +1,51 @@
+name: Test e deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nicola
+          POSTGRES_PASSWORD: nicola
+          POSTGRES_DB: cinetable_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nicola"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: cp .env.test.example .env.test
+      - run: yarn test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      # la chiave sulla VPS ha un comando forzato: qualunque comando esegue solo deploy_be.sh
+      - name: Deploy sulla VPS
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "[gipso.overzoom.it]:1022 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINOk6DaBF5DFnHfUqEm6WFfGRyP5T0LuDCzr9alALhSd" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p 1022 manager@gipso.overzoom.it deploy
