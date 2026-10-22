@@ -6,7 +6,7 @@
  *
  * base
  *   utenti (id): 1 anna (presidente), 2 bruno, 3 carla, 4 dario — `<nome>@e2e.it`, password `password-e2e`
- *   cineforum 1 "Cinofili del giovedì": anna PRESIDENT, bruno/carla/dario MEMBER
+ *   cineforum 1 "Cinefili del giovedì": anna PRESIDENT, bruno/carla/dario MEMBER
  *   categorie 1 "Horror anni '80", 2 "Commedia italiana"; premi 1 "Miglior film", 2 "Miglior regia"
  *   film: 1091 La cosa, 550 Fight Club, 620 Ghostbusters, 11216 Nuovo Cinema Paradiso
  *   invito 1 PENDING a ospite@e2e.it per il cineforum 1 (token INVITE_TOKEN_NEW)
@@ -90,7 +90,7 @@ async function main(db) {
     for (const [name] of PLAYERS) {
         users[name] = await db.user.create({ data: { username: name, email: `${name}@e2e.it`, password, emailVerifiedAt: new Date() } });
     }
-    const club = await db.cineforum.create({ data: { name: "Cinofili del giovedì" } });
+    const club = await db.cineforum.create({ data: { name: "Cinefili del giovedì" } });
     for (const [name] of PLAYERS) {
         await db.membership.create({ data: { userId: users[name].id, cineforumId: club.id, role: name === "anna" ? "PRESIDENT" : "MEMBER" } });
     }

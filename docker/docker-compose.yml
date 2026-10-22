@@ -14,4 +14,4 @@ services:
     environment:
       POSTGRES_USER: nicola
       POSTGRES_PASSWORD: nicola
-      POSTGRES_DB: cinofili
+      POSTGRES_DB: cinetable

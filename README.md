@@ -38,19 +38,19 @@ npx prisma migrate reset    # solo sviluppo: azzera e ricrea il DB
 6) Tests
 ```
 cp .env.test.example .env.test   # poi inserire le credenziali del DB locale
-# creare il database `cinofili_test` (es. createdb cinofili_test)
+# creare il database `cinetable_test` (es. createdb cinetable_test)
 yarn test
 ```
-`yarn test` resetta il DB `cinofili_test`, compila ed esegue i test.
+`yarn test` resetta il DB `cinetable_test`, compila ed esegue i test.
 
 7) E2E del frontend
 ```
 cp .env.e2e.example .env.e2e     # poi inserire le credenziali del DB locale
-# creare il database `cinofili_e2e` (es. createdb cinofili_e2e)
+# creare il database `cinetable_e2e` (es. createdb cinetable_e2e)
 yarn build
 node scripts/e2e-seed.js base    # base | open | screening | final | done
 ```
-Gli e2e di `cinofili-fe` (`npm run e2e`) avviano questo backend sulla porta 5055 con `.env.e2e` (`TRUST_PROXY=1`: Next è l'unico hop e inoltra così com'è l'`X-Forwarded-For` diverso che ogni test manda, così i rate limit per IP non si sommano) e chiamano `scripts/e2e-seed.js` prima di ogni test. Lo script rifiuta un `DATABASE_URL` il cui nome del database non finisca con `_e2e`, svuota tutte le tabelle e ricrea sempre gli stessi dati con gli stessi id; scenari, token fissi e voti attesi sono descritti in testa al file.
+Gli e2e di `cinetable-fe` (`npm run e2e`) avviano questo backend sulla porta 5055 con `.env.e2e` (`TRUST_PROXY=1`: Next è l'unico hop e inoltra così com'è l'`X-Forwarded-For` diverso che ogni test manda, così i rate limit per IP non si sommano) e chiamano `scripts/e2e-seed.js` prima di ogni test. Lo script rifiuta un `DATABASE_URL` il cui nome del database non finisca con `_e2e`, svuota tutte le tabelle e ricrea sempre gli stessi dati con gli stessi id; scenari, token fissi e voti attesi sono descritti in testa al file.
 
 Swagger documentation is available at `http://localhost:5000/docs`
 
